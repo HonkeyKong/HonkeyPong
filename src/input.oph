@@ -1,0 +1,47 @@
+; Input Registers
+
+  .alias	Pad1	$4016
+  .alias	Pad2	$4017
+
+; Bitmasks used for button testing
+  .alias  BUTTON_A        %10000000
+  .alias  BUTTON_B        %01000000
+  .alias  BUTTON_SELECT   %00100000
+  .alias  BUTTON_START    %00010000
+  .alias  DPAD_UP         %00001000
+  .alias  DPAD_DOWN       %00000100
+  .alias  DPAD_LEFT       %00000010
+  .alias  DPAD_RIGHT      %00000001
+
+; Write 1 then 0 to the controller register
+; to reset the latch, then read it and shift 
+; the bottom-most bit into the carry bit, then
+; rotate it back into our input byte. This 
+; gives us a bitmask of the controller state 
+; that we can check for individual buttons 
+; instead of checking each bit in sequence.
+ReadController1:
+  LDA #$01
+  STA Pad1
+  LDA #$00
+  STA Pad1
+  LDX #$08
+* LDA Pad1
+  LSR	              ; bit0 -> Carry
+  ROL ButtonsP1     ; bit0 <- Carry
+  DEX
+  BNE -
+  RTS
+  
+ReadController2:
+  LDA #$01
+  STA Pad2
+  LDA #$00
+  STA Pad2
+  LDX #$08
+* LDA Pad2
+  LSR	              ; bit0 -> Carry
+  ROL ButtonsP2	    ; bit0 <- Carry
+  DEX
+  BNE -
+  RTS

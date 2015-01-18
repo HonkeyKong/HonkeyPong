@@ -1,0 +1,33 @@
+ResetNES:
+	SEI          		; disable IRQs
+	CLD          		; disable decimal mode
+	LDX #$40
+	STX $4017    		; disable APU frame IRQ
+	LDX #$00
+	STX PPUControl1		; disable NMI
+	STX PPUControl2		; disable rendering
+	STX $4010			; disable DMC IRQs
+	RTS
+
+ClearRAM:			; Should be self-explanatory.
+	LDX	#$00
+*	LDA	#$00
+	STA	$000,X
+	; $100-$1FF contains the stack, don't touch.
+	; $200-$2FF is our OAM copy.
+	STA	$300,X
+	STA	$400,X
+	STA	$500,X
+	STA	$600,X
+	STA	$700,X
+	;LDA #$FE
+	;STA $200,X		; Move sprites off-screen.
+	INX
+	BNE	-
+	RTS
+
+ResetScroll:		; Reset the scroll registers.
+	LDA	#$00
+	STA	BGScroll
+	STA	BGScroll
+	RTS

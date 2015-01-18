@@ -1,0 +1,25 @@
+; This is our main build file, where everything is put together
+; in the common iNES format, accepted by most NES emulators.
+
+; Tell the assembler the name of the output file.
+.outfile "bin/HonkeyPong.nes"
+
+; Build the iNES ROM header
+.byte "NES"			; File Descriptor
+.byte $1A 			; MS-DOS EOF
+.byte $01			; 1 16KB PRG bank
+.byte $01			; 1 8KB CHR bank
+.byte %00000000	; Memory flags
+; Horizontal Mirroring, no SRAM, no trainer, Mapper 0 (NROM-128).
+.byte %00000000	; System Flags
+; No mapper high byte, No VS Unisystem or PC-10
+.byte $00 			; No PRG-RAM, inferring 8KB for compatibility.
+.byte $00 			; TV system specification (NTSC)
+.byte %00010000	; TV Specification bits (NTSC), no SRAM, no bus conflicts.
+.byte $00,$00,$00,$00,$00 ; Zero-fill remaining header bytes.
+
+; Next, build the 16KB program ROM.
+.include "src/main.oph"			; PRG-ROM bank
+
+; Finally, append the 8KB character ROM.
+.incbin "res/chr/honkeypong.chr" ; CHR-ROM bank

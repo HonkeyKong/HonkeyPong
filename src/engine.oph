@@ -1,0 +1,573 @@
+; Gameplay engine
+
+; Game Constants
+  .alias LEFTWALL    	$0C
+  .alias RIGHTWALL   	$ED
+  .alias TOPWALL     	$24
+  .alias BOTTOMWALL  	$D4
+  .alias PADDLETOP 		$26
+  .alias PADDLEBOTTOM $DA
+  .alias PADDLELENGTH	$18
+
+  .alias STATETITLE     $00
+  .alias STATEPLAYING   $01
+  .alias STATEGAMEOVER  $02
+  .alias STATETITLECARD $03
+  .alias PADDLE1X       $18
+  .alias PADDLE2X       $E2
+
+EngineTitle:
+  LDA TitleShowing	 	; Check if the title screen is already showing.
+  CMP #$01
+  BEQ +					; If yes, skip the rendering and setup code.
+
+  LDA #$01
+  STA TitleShowing
+  LDA #$00
+  STA FieldRendered
+  STA GameOverShowing
+  JSR DisableGFX
+  JSR ClearSprites
+  `LoadPalette titlePal
+
+  JSR RenderTitleScreen
+  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
+  JSR EnableGFX
+
+  ; Set some initial game stats
+  JSR ResetPlayfield
+
+  LDA #$01
+  STA BallRight   ; Set the ball moving right.
+  LDA #$00
+  STA BallLeft
+  ; Clear out the scores.
+  STA ScoreP1
+  STA ScoreP2
+
+
+  ; Read controller 1
+* LDA ButtonsP1
+  AND #BUTTON_START		; Is start pressed?
+  BEQ +					; If not, skip to the end.
+  ; NOTE: NES button states are active-low, so if
+  ; the particular button bit is set to 0, it means
+  ; it's pressed. This is why we BEQ instead of BNE.
+
+  LDA #STATEPLAYING		; Start is pressed, set "PLAYING" state.
+  STA GameState
+* RTS
+
+EnginePlaying:
+  ; Clear the title state.
+  LDA #$00
+  STA TitleShowing
+  STA GameOverShowing
+  ; Check if the playfield has already been rendered.
+  LDA FieldRendered
+  CMP #$01
+  BEQ + 	; If yes, skip rendering it again.
+  
+  ; Set up and render the playing field.
+  JSR DisableGFX
+  `loadPalette gamePal
+  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
+  JSR RenderPlayField
+  LDA #$01
+  STA FieldRendered
+  JSR InitSprites
+  JSR EnableGFX
+
+  ; Check the direction of the ball and move it.
+* LDA BallRight		; Is the ball moving right?
+  BEQ +      			; If not, skip ahead.
+
+  LDA BallX
+  CLC             ; CLear the Carry bit.
+  ADC BallSpeedX 	; ADd with Carry
+  STA BallX       ; BallX = BallX + BallSpeedX
+
+  ; Check for a collision against the right wall.
+  LDA BallX
+  CMP #RIGHTWALL
+  BCC +           ; Branch if Carry Clear (if BallX < RIGHTWALL)
+                  ; Skip ahead and keep moving right.
+
+  INC ScoreP1         ; Give player 1 a point.
+  LDA #$01
+  STA ScoreP1Updated    ; Inform the game engine that the score has changed.
+  STA BallLeft        ; Set the ball moving to the left. (Serve player 1)
+  LDA #$00      
+  STA BallRight       ; Clear the right-moving flag.
+  JSR ResetPlayfield  ; Reset the playing field.
+
+  ; This is the same as the right bit, only reversed.
+* LDA BallLeft 		; Is the ball moving left?
+  BEQ +   				; If not, skip ahead.
+
+  LDA BallX
+  SEC             ; SEt the Carry bit.
+  SBC BallSpeedX  ; SuBtract with Carry
+  STA BallX       ; BallX = BallX - BallSpeedX
+
+  LDA BallX
+  CMP #LEFTWALL
+  BCS +           ; Branch if Carry Set (if BallX > LEFTWALL)
+
+  INC ScoreP2         ; Give player 2 a point.
+  LDA #$01        
+  STA ScoreP2Updated    ; Inform the game engine that the score has changed.
+  STA BallRight       ; Set the ball moving to the right. (Serve player 2)
+  LDA #$00
+  STA BallLeft        ; Clear the left-moving flag.
+  JSR ResetPlayfield  ; Reset the playing field.
+
+  ; Move the ball up.
+* LDA BallUp      ; Is the ball moving up?
+  BEQ +           ; If not, skip ahead.
+
+  LDA BallY
+  SEC
+  SBC BallSpeedY
+  STA BallY       ; BallY = BallY - BallSpeedY
+  CLC             ; Clear the carry bit again.
+  ADC #$08        ; Add 8 to ball Y position.
+  STA BallBottom  ; Store as bottom boundary for collisions.
+
+  LDA BallY
+  CMP #TOPWALL
+  BCS +           ; If (BallY < TOPWALL), skip ahead.
+  LDA #$01
+  STA BallDown    ; Set the down-moving flag.
+  LDA #$00
+  STA BallUp      ; Clear the up-moving flag, bounce down.
+
+  ; Move the ball down.
+* LDA BallDown    ; Is the ball moving down?
+  BEQ +           ; If not, skip ahead.
+
+  LDA BallY
+  CLC
+  ADC BallSpeedY  
+  STA BallY       ; BallY = BallY + BallSpeedY
+  CLC             ; CLear Carry
+  ADC #$08        ; Add 8 to BallY
+  STA BallBottom  ; Store bottom ball boundary.
+
+  LDA BallY
+  CMP #BOTTOMWALL
+  BCC +           ; If BallY > BOTTOMWALL, skip ahead.
+  LDA #$00
+  STA BallDown    ; Clear down-moving flag.
+  LDA #$01
+  STA BallUp      ; Set up-moving flag, bounce ball up.
+
+  ; Time to check for player input.
+  ; Player 1 D-Pad Up
+* LDA ButtonsP1
+  AND #DPAD_UP
+  BEQ +           ; If P1 Up bit = 1, it's not pressed. Skip ahead.
+  
+  ; Check if the paddle is hitting the top wall.
+  LDA Paddle1YTop
+  CMP #PADDLETOP
+  BCC +           ; If it's touching the top, skip ahead.
+  
+  ; Move the paddle up.
+  SEC             ; We're subtracting, so set the carry bit.
+  LDA Paddle1YTop
+  SBC #$02        ; Subtract 2 from the paddle Y position.
+  STA Paddle1YTop ; Store the new value in RAM.
+  CLC             ; Clear the carry bit for addition.
+  LDA Paddle1YTop 
+  ADC #PADDLELENGTH ; Add the length of the paddle.
+  STA Paddle1YBot   ; Store paddle bottom position in RAM.
+
+  ; Player 2 D-Pad Up
+  ; Identical to the Player 1 function, only with Player 2.
+* LDA ButtonsP2
+  AND #DPAD_UP
+  BEQ +
+  
+  LDA Paddle2YTop
+  CMP #PADDLETOP
+  BCC +
+
+  SEC
+  LDA Paddle2YTop
+  SBC #$02
+  STA Paddle2YTop
+  CLC
+  ADC #PADDLELENGTH
+  STA Paddle2YBot
+
+  ; Player 1 D-Pad Down
+  ; Same as up, only moving/checking down.
+* LDA ButtonsP1
+  AND #DPAD_DOWN
+  BEQ +
+  
+  LDA Paddle1YBot
+  CMP #PADDLEBOTTOM
+  BCS +
+
+  CLC
+  LDA Paddle1YTop
+  ADC #$02
+  STA Paddle1YTop
+  CLC
+  ADC #PADDLELENGTH
+  STA Paddle1YBot
+
+  ; Player 2 D-Pad Down
+  ; Same as above, with Player 2.
+* LDA ButtonsP2
+  AND #DPAD_DOWN
+  BEQ +
+
+  LDA Paddle2YBot
+  CMP #PADDLEBOTTOM
+  BCS +
+
+  CLC
+  LDA Paddle2YTop
+  ADC #$02
+  STA Paddle2YTop
+  CLC
+  ADC #PADDLELENGTH
+  STA Paddle2YBot
+
+  ; We're done with input, now check for paddle collisions.
+  ; If (BallX < PADDLE1X)
+* LDA BallX
+  CMP #PADDLE1X
+  BCS CheckPaddle2           ; No collision, skip.
+  ; If (BallBottom > Paddle1YTop)
+  LDA BallBottom
+  CMP Paddle1YTop
+  BCC CheckPaddle2           ; No collision, skip.
+  ; If (BallY < Paddle1YBot)
+  LDA BallY
+  CMP Paddle1YBot
+  BCS CheckPaddle2           ; No collision, skip.
+  ; If nothing was skipped, we have a collision! 
+  
+  ; Put some english on the ball if the paddle is moving.
+  LDA ButtonsP1     ; Read the button state.
+  AND #DPAD_UP      ; Is up pressed?
+  BEQ +             ; No? Skip to the next check.
+  LDA BallUp
+  CMP #$01          ; Is the ball moving up?
+  BNE +             ; No? Skip to the next check.
+  LDA BallSpeedY    ; Ball moving up, check speed.
+  CMP #$04          ; Max speed?
+  BEQ +             ; Yes? Skip ahead.
+  INC BallSpeedY    ; No? Make it move up faster.
+
+* LDA ButtonsP1     ; Read the button state again.
+  AND #DPAD_DOWN    ; Is down pressed?
+  BEQ +             ; If not, skip ahead.
+  LDA BallDown
+  CMP #$01          ; Is the ball moving down?
+  BNE +             ; No? Skip ahead.
+  LDA BallSpeedY    ; Ball moving down, check speed.
+  CMP #$04          ; Max speed?
+  BEQ +             ; Yes? Skip ahead.
+  INC BallSpeedY    ; No? Make it move down faster.
+
+*  LDA ButtonsP1     ; Read the button state.
+  AND #DPAD_UP      ; Is up pressed?
+  BEQ +             ; No? Skip to the next check.
+  LDA BallDown
+  CMP #$01          ; Is the ball moving up?
+  BNE +             ; No? Skip to the next check.
+  LDA BallSpeedY    ; Ball moving up, check speed.
+  CMP #$01          ; Minimum speed?
+  BEQ +             ; Yes? Skip ahead.
+  DEC BallSpeedY    ; No? Make it move down slower.
+
+* LDA ButtonsP1     ; Read the button state again.
+  AND #DPAD_DOWN    ; Is down pressed?
+  BEQ +             ; If not, skip ahead.
+  LDA BallUp
+  CMP #$01          ; Is the ball moving up?
+  BNE +             ; No? Skip ahead.
+  LDA BallSpeedY    ; Ball moving down, check speed.
+  CMP #$01          ; Minimum speed?
+  BEQ +             ; Yes? Skip ahead.
+  DEC BallSpeedY    ; No? Make it move up slower.
+
+  ;Bounce it!
+* LDA #$00
+  STA BallLeft
+  LDA #$01
+  STA BallRight
+
+  ; Repeat for second paddle
+  ; Check if BallX is greater than PADDLE2X
+CheckPaddle2:
+  LDA BallX
+  CMP #PADDLE2X
+  BCC CollisionsDone
+  ; Check Paddle 2 top boundary against ball bottom.
+  LDA BallBottom
+  CMP Paddle2YTop
+  BCC CollisionsDone
+  ; Check Paddle 2 bottom boundary against ball top.
+  LDA BallY
+  CMP Paddle2YBot
+  BCS CollisionsDone
+  ; Collision! 
+
+  ; Put some english on the ball if the paddle is moving.
+  LDA ButtonsP2     ; Read the button state.
+  AND #DPAD_UP      ; Is up pressed?
+  BEQ +             ; No? Skip to the next check.
+  LDA BallUp
+  CMP #$01          ; Is the ball moving up?
+  BNE +             ; No? Skip to the next check.
+  LDA BallSpeedY    ; Ball moving up, check speed.
+  CMP #$04          ; Max speed?
+  BEQ +             ; Yes? Skip ahead.
+  INC BallSpeedY    ; No? Make it move up faster.
+
+* LDA ButtonsP2     ; Read the button state again.
+  AND #DPAD_DOWN    ; Is down pressed?
+  BEQ +             ; If not, skip ahead.
+  LDA BallDown
+  CMP #$01          ; Is the ball moving down?
+  BNE +             ; No? Skip ahead.
+  LDA BallSpeedY    ; Ball moving down, check speed.
+  CMP #$04          ; Max speed?
+  BEQ +             ; Yes? Skip ahead.
+  INC BallSpeedY    ; No? Make it move down faster.
+
+  LDA ButtonsP2     ; Read the button state.
+  AND #DPAD_UP      ; Is up pressed?
+  BEQ +             ; No? Skip to the next check.
+  LDA BallDown
+  CMP #$01          ; Is the ball moving up?
+  BNE +             ; No? Skip to the next check.
+  LDA BallSpeedY    ; Ball moving up, check speed.
+  CMP #$01          ; Minimum speed?
+  BEQ +             ; Yes? Skip ahead.
+  DEC BallSpeedY    ; No? Make it move down slower.
+
+* LDA ButtonsP2     ; Read the button state again.
+  AND #DPAD_DOWN    ; Is down pressed?
+  BEQ +             ; If not, skip ahead.
+  LDA BallUp
+  CMP #$01          ; Is the ball moving up?
+  BNE +             ; No? Skip ahead.
+  LDA BallSpeedY    ; Ball moving down, check speed.
+  CMP #$01          ; Minimum speed?
+  BEQ +             ; Yes? Skip ahead.
+  DEC BallSpeedY    ; No? Make it move up slower.
+
+  ; Bounce the ball.
+* LDA #$00
+  STA BallRight
+  LDA #$01
+  STA BallLeft
+
+CollisionsDone:
+  RTS   ; ReTurn from Subroutine
+
+  .alias gameOverField    $21CB
+  .alias pressStartField  $21E6
+
+EngineGameOver:
+  LDA #$00
+  STA TitleShowing
+  ; Game Over engine goes here.
+  LDA GameOverShowing
+  CMP #$01
+  BEQ GameOverDone
+  JSR DisableGFX
+  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
+  `setPPU gameOverField
+  LDX #$00
+* LDA gameOverLine1, X
+  STA VRAMIO
+  INX
+  CPX #$09
+  BNE -
+  `setPPU pressStartField
+  LDX #$00
+* LDA gameOverLine2, X
+  STA VRAMIO
+  INX
+  CPX #$14
+  BNE -
+  JSR EnableGFX
+  LDA #$01
+  STA GameOverShowing
+GameOverDone:
+  LDA ButtonsP1
+  AND #BUTTON_A
+  BEQ +
+  LDA #STATETITLE
+  STA GameState
+* RTS
+
+DrawScore:
+  ; Obviously, this is where we draw the score.
+  ; Not implemented yet, do it ASAP.
+  LDA ScoreP1Updated
+  CMP #$01
+  BNE +
+  JSR SetScoreP1
+  LDA #$00
+  STA ScoreP1Updated
+
+* LDA ScoreP2Updated
+  CMP #$01
+  BNE +
+  JSR SetScoreP2
+  LDA #$00
+  STA ScoreP2Updated
+* RTS
+
+ResetPlayfield:
+  LDA #$01
+  STA BallDown
+  LDA #$00
+  STA BallUp
+
+  LDA #$20
+  STA BallY
+
+  LDA #$80
+  STA BallX
+
+  LDA #$02
+  STA BallSpeedX
+  STA BallSpeedY
+
+  LDA #$78
+  STA Paddle1YTop
+  STA Paddle2YTop
+
+  LDA #$90
+  STA Paddle1YBot
+  STA Paddle2YBot
+
+  RTS
+
+  .alias  ScoreP1Loc   $204C
+  .alias  ScoreP2Loc   $205B
+
+scoreRow:
+  .byte "  Player 1: 0    Player 2: 0    "
+
+scoreWin:
+  .byte "WIN"
+
+scoreLose:
+  .byte "LOSE"
+
+gameOverLine1:
+  .byte "GAME OVER!"
+
+gameOverLine2:
+  .byte "Press A to continue."
+
+SetScoreP1:
+  `setPPU ScoreP1Loc
+  LDX ScoreP1
+  CPX #$0A
+  BEQ SetP1Win
+  LDA scoreTable, X
+  STA VRAMIO
+  JMP SetP1Done
+
+SetP1Win:
+  `setPPU ScoreP1Loc
+  LDX #$00
+* LDA scoreWin, X
+  STA VRAMIO
+  INX
+  CPX #$03
+  BNE -
+  `setPPU ScoreP2Loc
+  LDX #$00
+* LDA scoreLose, X
+  STA VRAMIO
+  INX
+  CPX #$04
+  BNE -
+  LDA #STATEGAMEOVER
+  STA GameState
+SetP1Done:
+  RTS
+
+SetScoreP2:
+`setPPU ScoreP2Loc
+  LDX ScoreP2
+  CPX #$0A
+  BEQ SetP2Win
+  LDA scoreTable, X
+  STA VRAMIO
+  JMP SetP2Done
+
+SetP2Win:
+  `setPPU ScoreP2Loc
+  LDX #$00
+* LDA scoreWin, X
+  STA VRAMIO
+  INX
+  CPX #$03
+  BNE -
+  `setPPU ScoreP1Loc
+  LDX #$00
+* LDA scoreLose, X
+  STA VRAMIO
+  INX
+  CPX #$04
+  BNE -
+  LDA #STATEGAMEOVER
+  STA GameState
+SetP2Done:
+  RTS
+
+scoreTable:
+  .byte "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+
+UpdateSprites:
+  ; The first OAM byte for a sprite is always
+  ; The Y position, so to update Y, it's safe
+  ; to write an 8-bit value directly to its 
+  ; base address in memory.
+
+  ; Update Ball
+  LDA BallY
+  STA Ball
+
+  ; X is always the 4th OAM byte, so we update
+  ; that by either writing to Base+3, or by
+  ; Declaring an X variable in our OAM copy
+  ; Stored 3 bytes ahead of the first OAM byte.
+  LDA BallX
+  STA BallXPos
+
+  ; Update Player 1 Paddle
+  LDA Paddle1YTop
+  STA PaddleP1Top
+  CLC
+  ADC #$08
+  STA PaddleP1Mid
+  CLC
+  ADC #$08
+  STA PaddleP1Bot
+
+  ; Update Player 2 Paddle
+  LDA Paddle2YTop
+  STA PaddleP2Top
+  CLC
+  ADC #$08
+  STA PaddleP2Mid
+  CLC
+  ADC #$08
+  STA PaddleP2Bot
+
+  RTS

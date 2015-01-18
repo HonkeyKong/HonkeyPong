@@ -1,0 +1,174 @@
+  ; HonkeyPong main program bank, 16KB
+
+  .data
+  .org $0000
+
+  ; Game variables, stored on Zero Page
+  .space  ScoreP1         1
+  .space  ScoreP2         1
+  .space  ButtonsP1       1
+  .space  ButtonsP2       1
+  .space  BallX           1
+  .space  BallY           1
+  .space  BallBottom      1
+  .space  BallUp          1
+  .space  BallDown        1
+  .space  BallLeft        1
+  .space  BallRight       1
+  .space  BallSpeedX      1
+  .space  BallSpeedY      1
+  .space  Paddle1YTop     1
+  .space  Paddle1YBot     1
+  .space  Paddle2YTop     1
+  .space  Paddle2YBot     1
+  .space  GameState       1
+  .space  MapAddr         2
+  .space  TempY           1
+  .space  TempX           1
+  .space  TempCounter     1
+  .space  TitleShowing    1
+  .space  FieldRendered   1
+  .space  ScoreP1Updated  1
+  .space  ScoreP2Updated  1
+  .space  GameOverShowing 1
+
+  .org $0200
+  ; Game Sprites, 4 bytes per sprite.
+  ; Paddle Tile Index, Rotation, Palette and
+  ; X Position are fixed, so 1 var each is OK.
+  .space  PaddleP1Top       4
+  .space  PaddleP1Mid       4
+  .space  PaddleP1Bot       4
+  .space  PaddleP2Top       4
+  .space  PaddleP2Mid       4
+  .space  PaddleP2Bot       4
+  ; The ball sprite is split into 3 variables so
+  ; we can alter things like palette and rotation.
+  .space  Ball              2
+  .space  BallAttr          1
+  .space  BallXPos          1
+
+  .text
+  .org $C000
+
+  .include "ppu.oph"              ; PPU routines
+  .include "apu.oph"              ; APU routines
+  .include "setup.oph"            ; NES setup routines
+  .include "render.oph"           ; Rendering routines
+  .include "sprites.oph"          ; Sprite tables
+  .include "input.oph"            ; Controller handler
+  .include "engine.oph"           ; Main gameplay stuff
+
+RESET:
+  ; Make sure everything gets set up properly.
+  JSR ResetNES    ; Basic boilerplate NES setup code
+  JSR WaitVBlank  ; VBlank #1
+  JSR ClearRAM    ; Clear out RAM
+  JSR WaitVBlank  ; VBlank #2
+  JSR DisableGFX  ; Disable graphics
+
+  ; PPU should be warmed now (After 2 VBlanks), set up the game.
+
+  ; STATETITLECARD isn't accounted for in the state machine,
+  ; but it doesn't matter, since it's only set at power-on
+  ; and reset, and at that point NMI is turned off.
+  LDA #STATETITLECARD
+  STA GameState
+  LDA #$00
+  STA TitleShowing
+  STA ScoreP1Updated
+  STA ScoreP2Updated
+
+  ; Load the title card palette.
+  `LoadPalette honkeyPal
+
+  ; OR some bitmasks together to set the PPU how we want it.
+  ; (Note that NMI and rendering are disabled here, so we don't
+  ; corrupt VRAM doing bulk data transfers + NMI before VBlank)
+  `ConfigurePPU BGAddr1|PPUInc1|NameTable20
+  ; Set Background Pattern Table to 1 (Second half of CHR bank)
+  ; Increment PPU I/O by 1 (Horizontal), Nametable at $2000
+
+  ; Clear out nametables.
+  JSR ClearNameTables
+
+  ; Load the background.
+  JSR RenderHonkeyKongScreen  ; Render "Honkey Kong" title card
+  JSR WriteHKAttributes       ; Write Attribute Table
+  JSR EnableGFX               ; Enable graphics
+
+  ; Wait 3 seconds so everyone can see how awesome I am.
+  `WaitFrames 180
+
+  ; Now, do the same thing again, but load the title screen.
+  ; Set starting game state
+  LDA #STATETITLE
+  STA GameState
+  JSR EngineTitle
+
+  ; Now that the game is running, enable NMI when VBlank is on.
+  ; Background tiles and sprites are both on Pattern Table 0
+  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
+
+MainLoop:
+  JMP MainLoop     ; Jump back, infinite loop. All game logic performed on NMI.
+
+; Non Maskable Interrupt, run once per frame when VBlank triggers.
+NMI:
+  LDA #$00
+  STA SpriteAddr  ; set the low byte (00) of the RAM address
+  LDA #$02
+  STA SpriteDMA   ; set the high byte (02) of the RAM address, start the transfer
+
+  LDA ScoreP1Updated
+  CMP #$01
+  BEQ +
+  LDA ScoreP2Updated
+  CMP #$01
+  BNE ReadPads
+* JSR DisableGFX
+  JSR DrawScore
+  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
+  JSR EnableGFX
+  JSR ToggleNMI
+  `waitFrames 30
+  JSR ToggleNMI
+
+  ; PPU updates are done, run the game logic.
+
+  ; Read the controller states.
+ReadPads:
+  JSR ReadController1
+  JSR ReadController2
+
+  ; Check the game state, and jump to the proper subroutine.
+
+  LDA GameState
+  CMP #STATETITLE
+  BNE +
+  JSR EngineTitle
+
+* LDA GameState
+  CMP #STATEPLAYING
+  BNE +
+  JSR EnginePlaying
+
+* LDA GameState
+  CMP #STATEGAMEOVER
+  BNE +
+  JSR EngineGameOver
+
+  ; Update Sprite RAM
+* JSR UpdateSprites
+
+  RTI   ; return from interrupt
+
+  ; Set up the 3 main vectors the NES looks for 
+  ; at the end of the ROM at power-on.
+  .advance $FFFA    ; First of the three vectors starts here
+
+  .word NMI         ; Non-Maskable Interrupt, runs during VBlank, once per frame.
+
+  .word RESET       ; This function is performed on power-on and reset.
+
+  .word 0           ; external IRQ is not used here

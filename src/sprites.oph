@@ -1,0 +1,21 @@
+; HonkeyPong Sprites
+; Sprites are stored in OAM
+; in the following order:
+; Y Pos, Index, Attr, X Pos
+
+Paddle1Top:
+  .byte $78, $82, $00, $10	; Paddle 1 top
+Paddle1Mid:
+  .byte $80, $81, $00, $10	; Paddle 1 center
+Paddle1Bot:
+  .byte $88, $82, $80, $10	; Paddle 1 bottom
+
+Paddle2Top:
+  .byte $78, $82, $41, $E8	; Paddle 2 top
+Paddle2Mid:
+  .byte $80, $81, $41, $E8	; Paddle 2 center
+Paddle2Bot:
+  .byte $88, $82, $C1, $E8	; Paddle 2 bottom
+
+BallSprite:
+  .byte $80, $83, $02, $7C	; Initial ball state
