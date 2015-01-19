@@ -34,6 +34,9 @@
 	STA APUControl
 .macend
 
+MakeBeep:
+	`configureAPU Square1Enable
+
 MaskSoundIRQs:
 	LDA	#$40
 	STA	$4017

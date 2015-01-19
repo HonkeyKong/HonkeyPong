@@ -373,16 +373,23 @@ CheckPaddle2:
 CollisionsDone:
   RTS   ; ReTurn from Subroutine
 
+  ; Locations in PPU memory where the
+  ; "Game over" text will be written.
+
+  ; Found by starting at $2000 and counting
+  ; forward 1 byte per tile (32 tiles per row).
+
   .alias gameOverField    $21CB
   .alias pressStartField  $21E6
 
 EngineGameOver:
   LDA #$00
   STA TitleShowing
-  ; Game Over engine goes here.
+
   LDA GameOverShowing
   CMP #$01
   BEQ GameOverDone
+
   JSR DisableGFX
   `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
   `setPPU gameOverField
@@ -411,8 +418,6 @@ GameOverDone:
 * RTS
 
 DrawScore:
-  ; Obviously, this is where we draw the score.
-  ; Not implemented yet, do it ASAP.
   LDA ScoreP1Updated
   CMP #$01
   BNE +
@@ -454,6 +459,8 @@ ResetPlayfield:
 
   RTS
 
+  ; These are the locations in the PPU
+  ; Memory where the scores are located.
   .alias  ScoreP1Loc   $204C
   .alias  ScoreP2Loc   $205B
 

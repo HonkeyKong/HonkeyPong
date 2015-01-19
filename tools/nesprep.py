@@ -1,10 +1,29 @@
 #!/usr/bin/python
 
 # nesprep.py - NES ROM Preparation Tool
-# Copyright 2015 Ryan D. Souders (HonkeyKong), All Rights Reserved.
 # This is a simple tool used to split a NES ROM's PRG and CHR banks
 # into separate binary files, and optionally inflate their sizes to 
 # prepare them for burning to an EPROM or write to a flash cartridge.
+
+# Copyright (c) 2015 Ryan D. Souders
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import sys, os
 from mmap import mmap
@@ -114,10 +133,10 @@ if __name__ == "__main__":
 				prgSplit = True
 			if (arg[:11] == "-inflatePRG"):
 				prgInflate = True
-				prgInfSize = int(arg.split('=')[-1])
+				prgInfSize = float(arg.split('=')[-1])
 			if (arg[:11] == "-inflateCHR"):
 				chrInflate = True
-				chrInfSize = int(arg.split('=')[-1])
+				chrInfSize = float(arg.split('=')[-1])
 			if (arg[:6] == "-quiet"):
 				quietMode = True
 		nesFile = load(sys.argv[1])

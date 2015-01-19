@@ -2,6 +2,7 @@
 Homebrew NES Pong clone, designed as a lesson on programming NES games.
 
 ##Why?
+___
   I love NES homebrew. The fact that new NES games are still being made 30 years after the console's
 release fills me with glee. When I see a new game that interests me, I buy it. The problem is, I 
 don't see as many interesting new games as I would like. So, as a service to aspiring NES programmers, 
@@ -29,6 +30,7 @@ on NintendoAge. These can be read here: http://nintendoage.com/pub/faq/NA/nerdy_
 
 
 ##Tools Used
+___
 ###Ophis 6502 Assembler
 http://michaelcmartin.github.io/Ophis/
 
@@ -102,6 +104,7 @@ I recommend Nestopia over FCE Ultra for testing though, because even though FCEU
 compatible, it's not always accurate. Fire up Top Gun to see what I'm talking about.
 
 ##FAQ
+___
 ###Will this run on a real NES?
   While I haven't tested it on real hardware yet, I'm pretty sure it'll work fine. This is a 
 Mapper 0 (NROM) game, meaning it uses no mapper hardware at all. I don't have any NROM-compatible 
@@ -111,6 +114,68 @@ chip (Mapper 4), and I do have flash hardware that uses MMC3, so I'll test it on
 Of course, I will be publishing source code for that version as well, so more people can learn 
 how to use mappers to make bigger, more complex games. Once I test the MMC3 version on my NES, 
 I will make note of anything that doesn't work on the real thing, and fix it in this version.
+
+###How do I build this?
+  On a Windows PC, some kind of GNU Make system should be in place, and a BASH environment would
+help as well. Personally, I use MSYS on my Windows machines. Python and Ophis are also required 
+for assembling the code and using the included tools (NESPrep is the only tool included with this
+distribution, other tools will be added in subsequent releases). For the testing and debugging
+targets, you should also have Nestopia and Nintendulator in your path. These are optional though,
+and you can always just load the assembled ROM in your emulator of choice. The important things
+to remember are that Ophis, Make, MSYS and Python are in your system path.
+
+  On Linux and Mac OS X, GNU Make and BASH should already be in place, so you just need to make
+sure you have Ophis and Python installed and in your system path. Again, Nestopia is also useful
+for the testing targets. For the debug target, you should replace Nintendulator with FCEUX, since
+Nintendulator is Win32-only. If you're testing on a low-power system like the Raspberry Pi, you
+can also substitute Nestopia for an emulator like FCEUX or RetroArch with one of the FCEU cores.
+I can't vouch for the compatibility or accuracy of using other emulators, but I don't do anything
+too crazy with the NES hardware here, so I can't see them causing any problems.
+
+**ANYWAY...** once you've made sure all the prerequisites are in place, building the game is as simple
+as opening the HonkeyPong directory in a terminal and typing the following:
+
+>make
+
+That's it. That'll build a ROM image in iNES format, that can be used with almost any NES emulator.
+If you want to build a ROM and load it in Nestopia for testing, just type:
+
+>make test
+
+If you're hacking away at the code and run into bugs, you can build the game and load it in a debugging
+emulator with the following command:
+
+>make debug
+
+By default, this will load the game in Nintendulator. If you're on Mac OS X or Linux, you will want
+to update the makefile to load FCEUX instead. The debug target will also generate a HonkeyPong.map
+file in plaintext format containing addresses of every variable, data block and subroutine address
+so you know where to set breakpoints and watch memory while debugging.
+
+If you want to prepare the game for programming to an actual cartridge, there are two targets for
+doing so. The first will create a 16KB PRG file and the 8KB CHR file. This is for standard NROM-128
+boards.
+
+>make cartridge
+
+Once this is done, you should have two additional files in your 'bin' folder. HonkeyPong.nes.PRG is
+the file you should flash to the PRG-ROM, and HonkeyPong.nes.CHR is the graphics data, which should
+be written to the CHR-ROM. If you have one of the INL-ROM NROM flashcarts, or another NROM-256 cartridge,
+use the following command instead:
+
+>make cartridge-256
+
+This will create the same 8KB CHR-ROM image as HonkeyPong.nes.CHR, but will create a larger version
+of the PRG-ROM, called HonkeyPong.nes.PRG.bin, 32KB (256 kilobits) in size by doubling up the PRG-ROM
+data to fill the larger 32KB ROM chip. Now you're ready to program your cartridge and play the game
+on a real NES.
+
+Finally, to clean up all the compiled binaries, debug data, and other stuff generated at assemble-time:
+
+>make clean
+
+In general, it's a good idea to do this any time you're about to rebuild, to ensure that any stale
+data doesn't get left over to interfere with testing, debugging, etc.
 
 ###Can I borrow some of your code to use in my own game?
   Yes. All the code and tools I've included here are made available under the MIT License.
@@ -163,3 +228,20 @@ useful in cases such as MMC3-based games on the 6Mbit INL-ROM flash board, to in
 ROMs up to fill the entire ROM space. The "make cartridge" target in the HonkeyPong Makefile will
 use this script to automatically prepare .bin files for flashing a cartridge. See the source code
 and usage instructions for more information.
+
+##Credits
+___
+
+###Graphics
+"Boxy Bold" pixel font by Clint Bellanger and usr_share
+Licensed under Public Domain: http://opengameart.org/content/boxy-bold-font-0
+
+Game tiles and screen arrangements by Ryan Souders (HonkeyKong)
+http://www.honkeykong.org/
+
+###Programming
+Inspired by "Nerdy Nights" by Brian Parker (BunnyBoy)
+http://nintendoage.com/pub/faq/NA/nerdy_nights_out.html
+
+Ophis port, game programming and tool development by Ryan Souders (HonkeyKong)
+http://www.honkeykong.org/
