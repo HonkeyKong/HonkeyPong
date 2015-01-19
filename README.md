@@ -1,8 +1,8 @@
 # HonkeyPong
 Homebrew NES Pong clone, designed as a lesson on programming NES games.
+___
 
 ##Why?
-___
   I love NES homebrew. The fact that new NES games are still being made 30 years after the console's
 release fills me with glee. When I see a new game that interests me, I buy it. The problem is, I 
 don't see as many interesting new games as I would like. So, as a service to aspiring NES programmers, 
@@ -27,10 +27,9 @@ of this stuff works, but in the meantime, I've tried to heavily comment the sour
 what each block does, and why it works. To better understand the workings of the NES hardware, and
 specifics of how to program the NES, I highly recommend checking out the "Nerdy Nights" tutorials
 on NintendoAge. These can be read here: http://nintendoage.com/pub/faq/NA/nerdy_nights_out.html
-
+___
 
 ##Tools Used
-___
 ###Ophis 6502 Assembler
 http://michaelcmartin.github.io/Ophis/
 
@@ -102,9 +101,9 @@ really like the renderer, so I test with Nestopia, and only use this when I need
 It's Win32-only though, so if you're on Linux or a Mac, you're better off debugging wth FCE Ultra.
 I recommend Nestopia over FCE Ultra for testing though, because even though FCEU is highly
 compatible, it's not always accurate. Fire up Top Gun to see what I'm talking about.
+___
 
 ##FAQ
-___
 ###Will this run on a real NES?
   While I haven't tested it on real hardware yet, I'm pretty sure it'll work fine. This is a 
 Mapper 0 (NROM) game, meaning it uses no mapper hardware at all. I don't have any NROM-compatible 
@@ -217,20 +216,9 @@ INL-Retro USB Programmer/Dumper: http://www.infiniteneslives.com/aux3.php
 
 NES Cartridge Production Supplies: http://www.infiniteneslives.com/aux4.php
 
-
-  Additionally, if you have one of these boards, or are building a PCB with actual EPROMs instead
-of flash ROM, you can use the nesprep.py script in the tools directory of this source distribution
-to prepare the game for flashing to a real cartridge. It's capable of simply splitting up the
-ROM into individual PRG.bin and CHR.bin files (for the PRG and CHR ROM chips, respectively),
-and also padding up the size of the PRG and CHR data to fill larger ROM chips, as is necessary
-if your program and data are smaller than the board you are programming. This is especially
-useful in cases such as MMC3-based games on the 6Mbit INL-ROM flash board, to inflate smaller
-ROMs up to fill the entire ROM space. The "make cartridge" target in the HonkeyPong Makefile will
-use this script to automatically prepare .bin files for flashing a cartridge. See the source code
-and usage instructions for more information.
+___
 
 ##Credits
-___
 
 ###Graphics
 "Boxy Bold" pixel font by Clint Bellanger and usr_share
