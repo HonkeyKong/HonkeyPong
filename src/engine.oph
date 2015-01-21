@@ -41,6 +41,7 @@ EngineTitle:
   STA BallRight   ; Set the ball moving right.
   LDA #$00
   STA BallLeft
+  STA BallFrame
   ; Clear out the scores.
   STA ScoreP1
   STA ScoreP2
@@ -540,6 +541,33 @@ SetP2Done:
 scoreTable:
   .byte "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
 
+  ; Construct a lookup table for the rotation 
+  ; attributes of the ball sprite, to make it
+  ; spin while flying across the playing field.
+  ; Each byte is repeated 4 times to make the
+  ; rotation update every 4 VBlanks @ 15fps.
+BallRotation:
+  .byte $00, $00, $00, $00, SpriteFlipY, SpriteFlipY, SpriteFlipY, SpriteFlipY
+  .byte SpriteFlipY|SpriteFlipX, SpriteFlipY|SpriteFlipX, SpriteFlipY|SpriteFlipX
+  .byte SpriteFlipY|SpriteFlipX, SpriteFlipX, SpriteFlipX, SpriteFlipX, SpriteFlipX
+
+  ; This function rotates the ball using the
+  ; lookup table constructed above.
+RotateBall:
+  LDA BallFrame           ; Load the ball's frame counter.
+  CMP #$10                ; Check if it's reached 16.
+  BNE +                   ; If not, skip to the rotation logic.
+  LDA #$00                ; If so, reset the counter.
+  STA BallFrame           ; Store back into RAM.
+* TAY                     ; Transfer A to Y
+  LDX #$02                ; Load sprite attribute byte offset
+  LDA BallSprite, X       ; Read default ball attributes.
+  ORA BallRotation, Y     ; OR attributes with Rotation LUT + Frame offset.
+  STA BallAttr            ; Store new attributes into OAM.
+  INY                     ; Increment frame counter.
+  STY BallFrame           ; Store back into RAM.
+  RTS
+
 UpdateSprites:
   ; The first OAM byte for a sprite is always
   ; The Y position, so to update Y, it's safe
@@ -549,6 +577,8 @@ UpdateSprites:
   ; Update Ball
   LDA BallY
   STA Ball
+
+  JSR RotateBall
 
   ; X is always the 4th OAM byte, so we update
   ; that by either writing to Base+3, or by

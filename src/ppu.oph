@@ -123,10 +123,18 @@ WaitVBlank:
 	BPL -
 	RTS
 
+; Toggle the Non-Maskable Interrupt on VBlank. This is useful
+; for times when the game logic needs to be paused, such as
+; when a point is scored, to give the players a moment to 
+; prepare for the next round, or when performing large bulk
+; data transfers to PPU memory for scene transitions. Remember,
+; Writing to PPU RAM outside of the VBlank period will corrupt
+; the PPU memory, trash your graphics, and maybe even crash
+; your game or kill your neighbors. It's a very bad thing.
 ToggleNMI:
-	LDA PPUControl1
-	EOR %10000000
-	STA PPUControl1
+	LDA PPUControl1 	; Read the PPU configuration
+	EOR NMIonVBlank	; XOR with the NMI bit.
+	STA PPUControl1 	; Write PPU config back.
 	RTS
 
 ; Zero out the PPU Control registers, clearing all configuration
@@ -163,8 +171,15 @@ ClearNameTables:			; Clear the name tables.
 
 ; Clears out sprite RAM and moves off-screen.
 ClearSprites:
-  LDA #$FE
-* STA $200,X		; Move sprites off-screen.
+  ; Write #$FE to all 256 OAM bytes.
+  ; #$FF may possibly wrap the sprites around.
+  ; Y goes down past the drawable area.  
+  ; Tile index will be at the end of the bank.
+  ; Palette and rotation bits don't matter.
+  ; (We can't see them right there anyway.)
+  ; X position to the far right.
+  LDA #$FE 
+* STA $200,X
   INX
   CPX #$FF
   BNE	-

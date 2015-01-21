@@ -7,6 +7,7 @@ rom:
 
 debugrom:
 	@echo Assembling iNES ROM with debug info...
+	@[[ -d bin ]] || mkdir bin
 	@ophis HonkeyPong_iNES_debug.oph -m HonkeyPong_Debug.map
 
 cartridge: rom

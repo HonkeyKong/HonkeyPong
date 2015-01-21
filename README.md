@@ -205,9 +205,7 @@ ___
 ##Credits
 
 ###Graphics
-"[Boxy Bold](http://opengameart.org/content/boxy-bold-font-0)" pixel font by Clint Bellanger and usr_share
-
-Licensed under Public Domain
+"[Boxy Bold](http://opengameart.org/content/boxy-bold-font-0)" pixel font by Clint Bellanger and usr\_share (_Released under Public Domain License_)
 
 Game tiles and screen arrangements by [Ryan Souders (HonkeyKong)](http://www.honkeykong.org/)
 
@@ -215,3 +213,5 @@ Game tiles and screen arrangements by [Ryan Souders (HonkeyKong)](http://www.hon
 Inspired by "[Nerdy Nights](http://nintendoage.com/pub/faq/NA/nerdy_nights_out.html)" by [Brian Parker (BunnyBoy)](http://www.retrousb.com/)
 
 Ophis port, game programming and tool development by [Ryan Souders (HonkeyKong)](http://www.honkeykong.org/)
+
+Famitone sound library by [Shiru](http://shiru.untergrund.net/), ported to Ophis by [pops](http://forums.nesdev.com/viewtopic.php?p=125176#p125176) (_Released under Public Domain License_)
