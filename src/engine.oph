@@ -578,6 +578,10 @@ UpdateSprites:
   LDA BallY
   STA Ball
 
+  ; This doesn't necessarily need to be between
+  ; the X and Y bytes, but I feel it's cleaner
+  ; to update the OAM in sequence rather than
+  ; doing it all in random order.
   JSR RotateBall
 
   ; X is always the 4th OAM byte, so we update

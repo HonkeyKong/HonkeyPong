@@ -160,7 +160,7 @@ RESET:
 MainLoop:
   JMP MainLoop     ; Jump back, infinite loop. All game logic performed on NMI.
 
-; Non Maskable Interrupt, ran once per frame when VBlank triggers.
+; Non Maskable Interrupt, run once per frame when VBlank triggers.
 NMI:
   ; The VBlank period has just started, it's safe to update PPU memory.
   LDA #$00
@@ -188,13 +188,6 @@ NMI:
   JSR ToggleNMI         ; Toggle NMI back on, game is playing again.
 
   ; PPU updates are done, run the game logic.
-  ; IMPORTANT NOTE: This beginning period is the ONLY time you should
-  ; attempt to write to the PPU memory. Writing any other time will
-  ; corrupt the display, due to conflicts from the NES trying to read
-  ; the video memory while you're trying to write to it. If your game
-  ; graphics get trashed, it usually means you're writing to the PPU 
-  ; RAM outside of the initial VBlank period, or you've run out of 
-  ; processing time in the above segment. This info can save your life.
 
   ; Read the controller states.
 ReadPads:
@@ -219,12 +212,6 @@ ReadPads:
   JSR EngineGameOver
 
   ; Update Sprite RAM
-  ; As a footnote to the lecture above about only updating graphics
-  ; at the top of the NMI during VBlank, I feel I should point out
-  ; that updating sprites here is OK, since the memory range used
-  ; in this routine ($0200) isn't actual video memory, but a page in
-  ; RAM used as a *copy* of the Object Attribute Memory. It will be
-  ; updated via DMA during the next VBlank, before the frame is drawn.
 * JSR UpdateSprites
 
   RTI   ; return from interrupt
