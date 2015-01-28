@@ -3,7 +3,7 @@ ifeq ($(OS),Windows_NT)
 	NSF_TARGET=tools/nsf2data.exe
 else
 	TXT_TARGET=tools/text2data
-	NSF_TARGET=tols/nsf2data
+	NSF_TARGET=tools/nsf2data
 endif
 
 TARGET=bin/HonkeyPong.nes
