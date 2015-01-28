@@ -16,6 +16,76 @@
   .alias PADDLE1X       $18
   .alias PADDLE2X       $E2
 
+EngineTitleCard:
+  LDA TitleCardShowing    ; Check the render state of the title card.
+  CMP #$01                ; Is it already rendered?
+  BEQ +                   ; If so, skip ahead to the music bit.
+
+  ; Load the title card palette.
+  `LoadPalette honkeyPal
+
+  ; (Note that NMI and rendering are disabled here, so we don't
+  ; corrupt VRAM doing bulk data transfers + NMI before VBlank)
+  `ConfigurePPU BGAddr1|PPUInc1|NameTable20
+
+  ; Clear out nametables.
+  JSR ClearNameTables
+
+  ; Load the background.
+  JSR RenderHonkeyKongScreen  ; Render "Honkey Kong" title card
+  JSR WriteHKAttributes       ; Write Attribute Table
+  
+  ; Set the nametable same as before, but enable NMI.
+  `ConfigurePPU NMIOnVBlank|BGAddr1|PPUInc1|NameTable20
+  JSR EnableGFX               ; Enable graphics
+  LDA #$01
+  STA TitleCardShowing        ; Tell the game the title card is drawn.
+
+* LDA MusicPlaying            ; Check the state of the music player
+  CMP #$01                    ; Is it playing?
+  BEQ +                       ; If so, skip over the next segment.
+
+  ; I don't really like the way this library sets itself up.
+  ; If I get bored in the future, I may change this.
+  LDX #<HonkeyPong_music_data   ; Load low byte of music address into X
+  LDY #>HonkeyPong_music_data   ; Load high byte of music address into Y
+  LDA #$01                      ; Load NTSC_MODE constant into accumulator
+  STA MusicPlaying              ; Set the Music Playing flag.
+  STA GamePaused                ; Pause main game logic.
+  JSR FamiToneInit              ; Initialize the sound engine.
+  LDA #$00                      ; Clear the Accumulator.
+  STA PauseTimer                ; Set the pause timer to zero.
+  JSR FamiToneMusicPlay         ; Hit the music! (Play song #0)
+
+  ; If the title card is rendered and sound is initialized,
+  ; This is where our per-frame logic starts.
+* LDA PauseTimer                ; Read the pause timer (updated once per second).
+  CMP #$04                      ; Have five seconds passed?
+  BNE CheckPauseTimer           ; If not, branch ahead.
+  LDA #$00                      ; If so, clear out the accumulator.
+  STA PauseTimer                ; Clear the pause timer.
+  STA GamePaused                ; Unpause the game logic.
+  STA MusicPlaying              ; Clear the Music Playing flag.
+  STA TitleCardShowing          ; Clear the Title Card flag.
+  JSR FamiToneMusicStop         ; Stop the music.
+  
+  LDA #STATETITLE               ; Load the Title Screen state value.
+  STA GameState                 ; Transfer to Game State.
+
+CheckPauseTimer:
+  LDA GamePaused        ; Check if pause flag is set.
+  CMP #$01
+  BNE ++                ; If it isn't, skip ahead and return.
+  LDX FrameCounter      ; Read out the frame counter.
+  INX                   ; Increment frame counter on X register.
+  CPX #$3C              ; Is the frame counter at 60? (1 second)
+  BNE +                 ; If not, skip the next two instructions.
+  INC PauseTimer        ; Increment the pause timer by one second.
+  LDX #$00              ; Reset the frame counter on X.
+* STX FrameCounter      ; Store new X value into frame counter.
+
+* RTS
+
 EngineTitle:
   LDA TitleShowing	 	; Check if the title screen is already showing.
   CMP #$01
@@ -24,6 +94,7 @@ EngineTitle:
   LDA #$01
   STA TitleShowing
   LDA #$00
+  STA TitleCardShowing
   STA FieldRendered
   STA GameOverShowing
   JSR DisableGFX
@@ -42,10 +113,11 @@ EngineTitle:
   LDA #$00
   STA BallLeft
   STA BallFrame
+  STA GamePaused
+
   ; Clear out the scores.
   STA ScoreP1
   STA ScoreP2
-
 
   ; Read controller 1
 * LDA ButtonsP1
@@ -57,12 +129,14 @@ EngineTitle:
 
   LDA #STATEPLAYING		; Start is pressed, set "PLAYING" state.
   STA GameState
+  
 * RTS
 
 EnginePlaying:
   ; Clear the title state.
   LDA #$00
   STA TitleShowing
+  STA TitleCardShowing
   STA GameOverShowing
   ; Check if the playfield has already been rendered.
   LDA FieldRendered
@@ -117,7 +191,7 @@ EnginePlaying:
 
   INC ScoreP2         ; Give player 2 a point.
   LDA #$01        
-  STA ScoreP2Updated    ; Inform the game engine that the score has changed.
+  STA ScoreP2Updated  ; Inform the game engine that the score has changed.
   STA BallRight       ; Set the ball moving to the right. (Serve player 2)
   LDA #$00
   STA BallLeft        ; Clear the left-moving flag.
@@ -276,7 +350,7 @@ EnginePlaying:
   BEQ +             ; Yes? Skip ahead.
   INC BallSpeedY    ; No? Make it move down faster.
 
-*  LDA ButtonsP1     ; Read the button state.
+* LDA ButtonsP1     ; Read the button state.
   AND #DPAD_UP      ; Is up pressed?
   BEQ +             ; No? Skip to the next check.
   LDA BallDown
@@ -376,7 +450,6 @@ CollisionsDone:
 
   ; Locations in PPU memory where the
   ; "Game over" text will be written.
-
   ; Found by starting at $2000 and counting
   ; forward 1 byte per tile (32 tiles per row).
 

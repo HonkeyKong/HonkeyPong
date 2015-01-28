@@ -1,7 +1,11 @@
 ; Input Registers
 
   .alias	Pad1	$4016
-  .alias	Pad2	$4017
+  .alias	Pad2	$4017 
+; Note: The upper bits of $4017 are also
+; the APU's frame counter. To keep from
+; corrupting it, we latch Pad1's register
+; while reading Pad2 instead. It works OK.
 
 ; Bitmasks used for button testing
   .alias  BUTTON_A        %10000000
@@ -35,13 +39,17 @@ ReadController1:
   
 ReadController2:
   LDA #$01
-  STA Pad2
+  STA Pad1
   LDA #$00
-  STA Pad2
+  STA Pad1
   LDX #$08
 * LDA Pad2
   LSR	              ; bit0 -> Carry
   ROL ButtonsP2	    ; bit0 <- Carry
   DEX
   BNE -
+  ; Disable the APU Interrupt so we don't 
+  ; corrupt anything while reading Pad 2.
+  LDA #$40
+  STA Pad2
   RTS

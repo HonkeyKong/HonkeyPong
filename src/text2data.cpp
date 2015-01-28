@@ -3,13 +3,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <conio.h>
+//#include <conio.h>	// I don't even think this is used, and
+						// it prevents Linux/OSX from compiling.
 #include <memory.h>
 
 
 #define OUT_NESASM	0
 #define OUT_CA65	1
 #define OUT_ASM6	2
+#define OUT_OPHIS	3
 
 char DB[8];
 char DW[8];
@@ -787,6 +789,10 @@ void parse_song_old(void)
 
 					break;
 
+				case 'C': // End song, no loop.
+					song_break=true;
+					break;
+
 				case 'D'://end pattern early
 					song_original.pattern[pos].length=row+1;
 					pattern_break=true;
@@ -1272,6 +1278,9 @@ void parse_song(int subsong,bool header_only)
 
 						if(song_original.order_loop>order[pos][chn]) parse_error_ptn(order[pos][chn],row,chn,"Bxx loop position can't be a forward reference");
 					}
+					break;
+
+				case 'C': // End song, no loop.
 					break;
 
 				case 'D'://end pattern early
@@ -2136,8 +2145,9 @@ int main(int argc,char *argv[])
 	if(argc<2)
 	{
 		printf("text2data for FamiTone2 NES audio library\n");
-		printf("by Shiru (shiru@mail.ru), 11'14\n\n");
-		printf("Usage: text2data.exe song.txt [-ca65 or -asm6][-ch1..5][-s]\n");
+		printf("Original software by Shiru (shiru@mail.ru), 11'14\n");
+		printf("Ophis and Linux/OSX support by HonkeyKong (honkeykong@honkeykong.org), 01'15\n\n");
+		printf("Usage: text2data song.txt [-ca65 or -asm6 or -ophis][-ch1..5][-s]\n");
 
 		return 0;
 	}
@@ -2147,16 +2157,22 @@ int main(int argc,char *argv[])
 	channels=5;//process all channels
 	separate=false;//export all subsongs as one file
 
+	/* _stricmp() isn't available in a POSIX environment,
+	   so it has been replaced with strcmp. The only thing
+	   to note is that this means command-line switches
+	   are now case-sensitive, which isn't a big deal.
+	*/
 	for(i=1;i<argc;++i)
 	{
-		if(!_stricmp(argv[i],"-ca65")) outtype=OUT_CA65;
-		if(!_stricmp(argv[i],"-asm6")) outtype=OUT_ASM6;
-		if(!_stricmp(argv[i],"-ch5"))  channels=5;
-		if(!_stricmp(argv[i],"-ch4"))  channels=4;
-		if(!_stricmp(argv[i],"-ch3"))  channels=3;
-		if(!_stricmp(argv[i],"-ch2"))  channels=2;
-		if(!_stricmp(argv[i],"-ch1"))  channels=1;
-		if(!_stricmp(argv[i],"-s"))    separate=true;
+		if(!strcmp(argv[i],"-ca65")) outtype=OUT_CA65;
+		if(!strcmp(argv[i],"-asm6")) outtype=OUT_ASM6;
+		if(!strcmp(argv[i],"-ophis")) outtype=OUT_OPHIS;
+		if(!strcmp(argv[i],"-ch5"))  channels=5;
+		if(!strcmp(argv[i],"-ch4"))  channels=4;
+		if(!strcmp(argv[i],"-ch3"))  channels=3;
+		if(!strcmp(argv[i],"-ch2"))  channels=2;
+		if(!strcmp(argv[i],"-ch1"))  channels=1;
+		if(!strcmp(argv[i],"-s"))    separate=true;
 
 		if(argv[i][0]!='-') strcpy(inname,argv[i]);
 	}
@@ -2225,6 +2241,12 @@ int main(int argc,char *argv[])
 		strcpy(DW,"dw");
 		strcpy(LL,"@");
 		break;
+
+	case OUT_OPHIS:
+		printf("Ophis");
+		strcpy(DB,".byte");
+		strcpy(DW,".word");
+		strcpy(LL,"");
 	}
 
 	printf(", ");
@@ -2250,7 +2272,18 @@ int main(int argc,char *argv[])
 			envelopes_cleanup();
 			envelope_pitch_convert();
 
-			if(outtype!=OUT_CA65) strcat(outname,".asm"); else strcat(outname,".s");
+			// if(outtype!=OUT_CA65) strcat(outname,".asm"); else strcat(outname,".s");
+			switch(outtype) {
+				case OUT_CA65:
+					strcat(outname, ".s");
+					break;
+				case OUT_OPHIS:
+					strcat(outname,".oph");
+					break;
+				default:
+					strcat(outname,".asm");
+					break;
+			}
 
 			output_open(outname);
 

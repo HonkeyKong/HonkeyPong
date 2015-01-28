@@ -18,44 +18,81 @@
 
   .org $0000
 
-  ; Game variables, stored on Zero Page
-  .space  ScoreP1         1
-  .space  ScoreP2         1
-  .space  ButtonsP1       1
-  .space  ButtonsP2       1
-  .space  BallX           1
-  .space  BallY           1
-  .space  BallBottom      1
-  .space  BallUp          1
-  .space  BallDown        1
-  .space  BallLeft        1
-  .space  BallRight       1
-  .space  BallSpeedX      1
-  .space  BallSpeedY      1
-  .space  BallFrame       1
-  .space  Paddle1YTop     1
-  .space  Paddle1YBot     1
-  .space  Paddle2YTop     1
-  .space  Paddle2YBot     1
-  .space  GameState       1
-  .space  MapAddr         2
-  .space  TempY           1
-  .space  TempX           1
-  .space  TempCounter     1
-  .space  TitleShowing    1
-  .space  FieldRendered   1
-  .space  ScoreP1Updated  1
-  .space  ScoreP2Updated  1
-  .space  GameOverShowing 1
+  ; Game variables, stored on Zero Page ($0000-$00FF)
+  ; Zero Page is for storing variables that need faster
+  ; access. It's also used for certain operations that
+  ; will only work with this memory range, like bulk
+  ; data transfers on a 16-bit buffer.
+
+  ; Unlike the .alias directive, which functions similar
+  ; to the #define directive in C, the .space directive
+  ; will reserve a space at the current memory location
+  ; with the specified size, addressable as the label name.
+  ; This is effectively the same as declaring a variable 
+  ; in C, but without the type restriction. You have to
+  ; remember what you're using it for yourself. The assembler
+  ; and (nonexistent) runtime just see it as raw data.
+
+  .space  ScoreP1           1   ; Player 1 Score
+  .space  ScoreP2           1   ; Player 2 Score
+  .space  ButtonsP1         1   ; Player 1 Button State
+  .space  TempButtons1      1   ; P1 Button Compare Value
+  .space  ButtonsP2         1   ; Player 2 Button State
+  .space  TempButtons2      1   ; P2 Button Compare Value
+  .space  BallX             1   ; Ball X Position Copy
+  .space  BallY             1   ; Ball Y Position Copy
+  .space  BallBottom        1   ; Bottom boundary of ball.
+  .space  BallUp            1   ; Flag set when ball is moving up.
+  .space  BallDown          1   ; Flag set when ball is moving down.
+  .space  BallLeft          1   ; Flag set when ball is moving left.
+  .space  BallRight         1   ; Flag set when ball is moving right.
+  .space  BallSpeedX        1   ; Number of pixels to increment X position.
+  .space  BallSpeedY        1   ; Number of pixels to increment Y position.
+  .space  BallFrame         1   ; Frame counter for ball animation.
+  .space  Paddle1YTop       1   ; Y position of Player 1 paddle top.
+  .space  Paddle1YBot       1   ; Bottom boundary of Player 1 paddle.
+  .space  Paddle2YTop       1   ; Y position of Player 2 paddle top.
+  .space  Paddle2YBot       1   ; Bottom boundary of Player 2 paddle.
+  .space  GameState         1   ; Current game state.
+  .space  MapAddr           2   ; Address of tile map for bulk transfer.
+  .space  TempX             1   ; Temporary storage for X.
+  .space  TempCounter       1   ; Temporary tile counter for nametable rendering.
+  .space  FrameCounter      1   ; Frame counter used for timing pauses in logic.
+  .space  PauseTimer        1   ; Counter used for timing seconds paused.
+  .space  TitleShowing      1   ; Flag raised when title screen is rendered.
+  .space  TitleCardShowing  1   ; Flag raised when title card is rendered.
+  .space  FieldRendered     1   ; Flag raised when playfield is rendered.
+  .space  ScoreP1Updated    1   ; Flag raised when P1 score is updated.
+  .space  ScoreP2Updated    1   ; Flag raised when P2 score is updated.
+  .space  MusicPlaying      1   ; Flag raised when music is playing.
+  .space  GameOverShowing   1   ; Flag raised when game over is shown.
+  .space  GamePaused        1   ; Flag raised when game logic is paused.
 
   ; 3-byte scratchpad for Famitone,
   ; stored at end of zero page.
   .org $00F0
-  .space  FT_TEMP         3
+  .space  FT_TEMP           3
+  ; Yes, I know I don't need to reserve an entire 16-byte
+  ; space for three bytes. Just keeping a safe boundary set.
 
+  ; $0100-$001FF are the location of the stack. It's better
+  ; to just let the NES handle this, unless you really need
+  ; to manually manipulate it.
+
+  ; $0200 isn't really a special place in memory, just the start
+  ; of available non-zeropage memory past the stack. This is
+  ; generally used to store a copy of the Object Attribute Memory
+  ; (OAM), also commonly known as sprite RAM. You can locate it
+  ; elsewhere, as long as you feed the right address to the 
+  ; PPU I/O so it knows where to copy sprite RAM updates from.
   .org $0200
   ; The ball sprite is split into 3 variables so
   ; we can alter things like palette and rotation.
+  ; Technically this could also be done by addressing
+  ; Ball+2 for the attribute byte, and Ball+3 for X.
+  ; However, the code comes out cleaner and does the
+  ; same thing arranged this way, so I'm doing it for
+  ; the sake of readability and maintainability.
   .space  Ball              2
   .space  BallAttr          1
   .space  BallXPos          1
@@ -98,70 +135,55 @@
   ; in sequence before they're used or called, though it
   ; isn't mandatory. It just helps keep everything clean.
 
-  .include "ppu.oph"              ; PPU routines
-  .include "setup.oph"            ; NES setup routines
-  .include "render.oph"           ; Rendering routines
-  .include "sprites.oph"          ; Sprite tables
-  .include "input.oph"            ; Controller handler
-  .include "engine.oph"           ; Main gameplay stuff
-  .include "famitone2.oph"        ; Audio library
+  .include "ppu.oph"                    ; PPU routines
+  .include "setup.oph"                  ; NES setup routines
+  .include "render.oph"                 ; Rendering routines
+  .include "sprites.oph"                ; Sprite tables
+  .include "input.oph"                  ; Controller handler
+  .include "engine.oph"                 ; Main gameplay stuff
+  .include "famitone2.oph"              ; Audio library
+  .include "../res/snd/HonkeyPong.oph"  ; Test song
 
 RESET:
   ; Make sure everything gets set up properly.
-  JSR ResetNES    ; Basic boilerplate NES setup code
-  JSR WaitVBlank  ; VBlank #1
-  JSR ClearRAM    ; Clear out RAM
-  JSR WaitVBlank  ; VBlank #2
-  JSR DisableGFX  ; Disable graphics
+  JSR ResetNES      ; Basic boilerplate NES setup code
+  JSR WaitVBlank    ; VBlank #1
+  JSR ClearRAM      ; Clear out RAM
+  `clearStack       ; Clean up the stack.
+  JSR ClearSprites  ; Move sprites off-screen.
+  JSR WaitVBlank    ; VBlank #2
+  JSR DisableGFX    ; Disable graphics
 
   ; PPU should be warmed up now (After 2 VBlanks), set up the game.
-
-  ; STATETITLECARD isn't accounted for in the state machine,
-  ; but it doesn't matter, since it's only set at power-on
-  ; and reset, and at that point NMI is turned off.
-  LDA #STATETITLECARD
-  STA GameState
+  ; Clear out any flags that could have been raised before reset.
   LDA #$00
   STA TitleShowing
+  STA TitleCardShowing
+  STA FieldRendered
+  STA MusicPlaying
+  STA GamePaused
+  STA PauseTimer
+  STA GameOverShowing
   STA ScoreP1Updated
   STA ScoreP2Updated
-
-  ; Load the title card palette.
-  `LoadPalette honkeyPal
+  STA FrameCounter
 
   ; OR some bitmasks together to set the PPU how we want it.
-  ; (Note that NMI and rendering are disabled here, so we don't
-  ; corrupt VRAM doing bulk data transfers + NMI before VBlank)
-  `ConfigurePPU BGAddr1|PPUInc1|NameTable20
+  `ConfigurePPU NMIonVBlank|BGAddr1|PPUInc1|NameTable20
   ; Set Background Pattern Table to 1 (Second half of CHR bank)
   ; Increment PPU I/O by 1 (Horizontal), Nametable at $2000
 
-  ; Clear out nametables.
-  JSR ClearNameTables
-
-  ; Load the background.
-  JSR RenderHonkeyKongScreen  ; Render "Honkey Kong" title card
-  JSR WriteHKAttributes       ; Write Attribute Table
-  JSR EnableGFX               ; Enable graphics
-
-  ; Wait 3 seconds so everyone can see how awesome I am.
-  `WaitFrames 180
-
-  ; Set starting game state
-  LDA #STATETITLE
-  STA GameState
-
-  ; Now that the game is ready, enable NMI when VBlank is on.
-  ; Once the NMI triggers, it'll see that the game state is set
-  ; to display the title screen, and execute that subroutine.
-  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
-  ; Background tiles and sprites are both on Pattern Table 0
+  LDA #STATETITLECARD     ; We load the initial title card state here,
+  STA GameState           ; before the main loop starts.
+                          ; When the NMI triggers, it'll automatically
+                          ; execute the title card subroutine.
 
 MainLoop:
   JMP MainLoop     ; Jump back, infinite loop. All game logic performed on NMI.
 
 ; Non Maskable Interrupt, ran once per frame when VBlank triggers.
 NMI:
+
   ; The VBlank period has just started, it's safe to update PPU memory.
   LDA #$00
   STA SpriteAddr  ; set the low byte (00) of the RAM address
@@ -174,8 +196,8 @@ NMI:
   BEQ +                 ; If so, jump ahead to update the point display.
   LDA ScoreP2Updated    ; If not, see if player 2 scored.
   CMP #$01
-  BNE ReadPads          ; If player 2 didn't score either, branch
-                        ; ahead and read the controller inputs.
+  BNE ReadPads   ; If player 2 didn't score either, branch
+                        ; ahead and check the pause timer.
 
 * JSR DisableGFX        ; Turn off graphics and update the background.
   JSR DrawScore         ; Draw the new scores for both players.
@@ -202,8 +224,12 @@ ReadPads:
   JSR ReadController2
 
   ; Check the game state, and jump to the proper subroutine.
-
   LDA GameState
+  CMP #STATETITLECARD
+  BNE +
+  JSR EngineTitleCard
+
+* LDA GameState
   CMP #STATETITLE
   BNE +
   JSR EngineTitle
@@ -218,6 +244,9 @@ ReadPads:
   BNE +
   JSR EngineGameOver
 
+  ; Update sound engine
+* JSR FamiToneUpdate
+
   ; Update Sprite RAM
   ; As a footnote to the lecture above about only updating graphics
   ; at the top of the NMI during VBlank, I feel I should point out
@@ -225,12 +254,20 @@ ReadPads:
   ; in this routine ($0200) isn't actual video memory, but a page in
   ; RAM used as a *copy* of the Object Attribute Memory. It will be
   ; updated via DMA during the next VBlank, before the frame is drawn.
-* JSR UpdateSprites
+  
+  JSR UpdateSprites
 
-  RTI   ; return from interrupt
+  RTI   ; ReTurn from Interrupt
 
   ; Set up the 3 main vectors the NES looks for 
-  ; at the end of the ROM at power-on.
+  ; at the end of the ROM on power-up.
+
+  ; Unlike the .org directive, .advance will advance the program 
+  ; counter and zero fill the space leading up to it to pad the 
+  ; binary up to the designated location. This is necessary in places
+  ; like this, where the hardware expects a lookup table with the 
+  ; necessary functions to set up the NES and get things running.
+
   .advance $FFFA    ; First of the three vectors starts here
 
   .word NMI         ; Non-Maskable Interrupt, runs during VBlank, once per frame.

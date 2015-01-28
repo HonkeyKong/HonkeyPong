@@ -93,27 +93,59 @@ really like the renderer, so I test with Nestopia, and only use this when I need
 It's Win32-only though, so if you're on Linux or a Mac, you're better off debugging wth FCE Ultra.
 I recommend Nestopia over FCE Ultra for testing though, because even though FCEU is highly
 compatible, it's not always accurate. Fire up Top Gun to see what I'm talking about.
+
+###[FamiTracker](http://www.famitracker.com/)
+
+  Music tracking software used to compose music for the NES. Modeled after the MadTracker interface,
+it's fairly simple to use once you get the hang of it. Unfortunately, it's Win32-only at the moment.
+Using the native NSF exporter for game music isn't recommended due to the large output size, but
+the software also supports exporting music in text format, and from there it can be converted
+to raw data for use with other NES libraries such as Famitone.
 ___
 
 ##FAQ
+
+###You call this a beta, what's left to do?
+  Well, right now it's fully playable for 2 players, but there's still a lot I want
+to do with it. I would like to remove the 2-player requirement, and at least add a
+rudimentary AI so the game can be played with one player. Some people probably won't
+mind only being able to play with two players, but personally I'm getting tired
+of doing testing cycles controlling two players at once.
+
+  Since this is part game, part development tutorial, I would also like to further document the code
+to help clear up any confusion about why things are done a certain way, and to explain how the NES
+hardware works, quirks and all. I've mostly documented the main source file, but other code, such as
+some of the rendering stuff, is insufficiently documented, and downright hacky in other places. I
+don't want to encourage bad programming practices, so I want to clean these parts up before anyone
+mistakenly uses bad bits of my code causing further problems.
+
+  With that in mind, I encourage NES programmers with more experience than myself to review the code
+and offer constructive criticism. Correct my mistakes, explain what is wrong, provide better examples
+whatever they may be, so that the rest of us can learn the proper way to do these things. I'm not an
+expert by any means, nor do I pretend to be. I'm just another guy who wants to learn how this stuff
+is done, and help others do the same.
+
 ###Will this run on a real NES?
-  While I haven't tested it on real hardware yet, I'm pretty sure it'll work fine. This is a
-Mapper 0 (NROM) game, meaning it uses no mapper hardware at all. I don't have any NROM-compatible
-flash hardware, so I haven't been able to test. It works fine in Nestopia, Nintendulator, and
-FCEUX though. After I finish the sound engine, I will also be porting this game to use the MMC3
-chip (Mapper 4), and I do have flash hardware that uses MMC3, so I'll test it on real hardware then.
-Of course, I will be publishing source code for that version as well, so more people can learn
-how to use mappers to make bigger, more complex games. Once I test the MMC3 version on my NES,
-I will make note of anything that doesn't work on the real thing, and fix it in this version.
+  The game has been tested and confirmed to work on the US model NES, as well as clone systems
+like Yobo's "FC Game Console" and the FC3 Plus. Unless Hyperkin has updated their emulation
+model in the Retron 5, it will not run on that, since it only plays games from a known database,
+automatically excluding homebrew titles and flash cartridges like the Everdrive and PowerPak.
+That doesn't bother me though, because the Hyperkin developers are dicks who shipped the Retron 5
+with code stolen from myself and many other emulation developers.
+
+  This is a "Mapper 0" (NROM) game, meaning it uses no mapper hardware at all. It also works fine
+in Nestopia, Nintendulator, and FCEUX. After I finish the sound engine, I will also be porting this
+game to use the MMC3 chip (Mapper 4). Of course, I will be publishing source code for that version
+as well, so more people can learn how to use mappers to make bigger, more complex games.
 
 ###How do I build this?
-  On a Windows PC, some kind of GNU Make system should be in place, and a BASH environment would
-help as well. Personally, I use MSYS on my Windows machines. Python and Ophis are also required
-for assembling the code and using the included tools (NESPrep is the only tool included with this
-distribution, other tools will be added in subsequent releases). For the testing and debugging
-targets, you should also have Nestopia and Nintendulator in your path. These are optional though,
-and you can always just load the assembled ROM in your emulator of choice. The important things
-to remember are that Ophis, Make, MSYS and Python are in your system path.
+  On a Windows PC, some kind of GNU Make system should be in place, as well as a BASH environment
+Personally, I use MSYS on my Windows machines. Python and Ophis are also required for assembling
+the code and using the included tools (NESPrep is the only tool included with this distribution,
+other tools will be added in subsequent releases). For the testing and debugging targets, you
+should also have Nestopia and Nintendulator in your path. These are optional though, and you can
+always just load the assembled ROM in your emulator of choice. The important things to remember
+are that Ophis, Make, MSYS and Python are in your system path.
 
   On Linux and Mac OS X, GNU Make and BASH should already be in place, so you just need to make
 sure you have Ophis and Python installed and in your system path. Again, Nestopia is also useful
@@ -128,7 +160,8 @@ as opening the HonkeyPong directory in a terminal and typing the following:
 
 >make
 
-That's it. That'll build a ROM image in iNES format, that can be used with almost any NES emulator.
+That's it. That'll build all the tools, compile the sound data, then build the
+ROM image in iNES format, which can be used with almost any NES emulator.
 If you want to build a ROM and load it in Nestopia for testing, just type:
 
 >make test
@@ -138,10 +171,15 @@ emulator with the following command:
 
 >make debug
 
-By default, this will load the game in Nintendulator. If you're on Mac OS X or Linux, you will want
-to update the makefile to load FCEUX instead. The debug target will also generate a HonkeyPong.map
-file in plaintext format containing addresses of every variable, data block and subroutine address
-so you know where to set breakpoints and watch memory while debugging.
+By default, this will load the game in Nintendulator. If you're on Mac OS X or
+Linux, you will want to update the makefile to load FCEUX instead. The debug target
+will also generate a "HonkeyPong_Debug.map" file in plaintext format containing
+addresses of every variable, data block and subroutine address so you know where
+to set breakpoints and watch memory while debugging.
+
+If you want to just generate the ROM with debug info:
+
+>make debugrom
 
 If you want to prepare the game for programming to an actual cartridge, there are two targets for
 doing so. The first will create a 16KB PRG file and the 8KB CHR file. This is for standard NROM-128
@@ -161,20 +199,45 @@ of the PRG-ROM, called HonkeyPong.nes.PRG.bin, 32KB (256 kilobits) in size by do
 data to fill the larger 32KB ROM chip. Now you're ready to program your cartridge and play the game
 on a real NES.
 
-Finally, to clean up all the compiled binaries, debug data, and other stuff generated at assemble-time:
+To clean up all the compiled binaries, debug data, and other stuff generated at assemble-time:
 
 >make clean
 
 In general, it's a good idea to do this any time you're about to rebuild, to ensure that any stale
 data doesn't get left over to interfere with testing, debugging, etc.
 
+To build the sound tools:
+
+>make soundtools
+
+To clean up the sound tools:
+
+>make clean-soundtools
+
+To compile the sound data into assembly code to be included in the ROM, do this:
+
+>make sound
+
+To clean up the compiled sound data:
+
+>make clean-sound
+
+Finally, to clean up all the binaries, debug stuff, sound tools, and compiled sound
+data, use this command:
+
+>make clean-all
+
 ###Can I borrow some of your code to use in my own game?
-  Yes. All the code and tools I've included here are made available under the MIT License.
-If you're unfamiliar with the terms, the gist of it is that you can use this code however
-you want, even in a commercial title that you want to sell. If you want to use the headers
-I made to address the NES hardware easily, or modify them, go ahead. The only thing you
+  Yes. Unless otherwise noted, the code and tools I've included here are made available under
+the MIT License. If you're unfamiliar with the terms, the gist of it is that you can use this
+code however you want, even in a commercial title that you want to sell. If you want to use the
+headers I made to address the NES hardware easily, or modify them, go ahead. If you want to
+modify, reuse, redistribue and relicense the code, that's fine as well. The only thing you
 can't do is hold me responsible if it blows up your NES, Famicom, PC, TV, cell phone, tablet,
 cat, or toaster. That (probably) won't happen though. There's no warranty, use at your own risk.
+The "Boxy Bold" font and FamiTone sound library are public domain. Permissive licenses will be
+used wherever possible in this project, in order to ensure that everyone can make the games
+they want to make without restrictions.
 
 ###How can I put this game on a cartridge and play it on a real NES?
   There are several ways to do this. Memory card-based devices like the [Everdrive N8](http://www.stoneagegamer.com/flash-carts/everdrive-n8-fc-nes/north-america-europe-nes/) and [Powerpak](http://www.retrousb.com/product_info.php?cPath=24&products_id=34)

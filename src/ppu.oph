@@ -175,6 +175,7 @@ ClearSprites:
   ; #$FF may possibly wrap the sprites around.
   ; Y goes down past the drawable area.  
   ; Tile index will be at the end of the bank.
+  ; (In small games, this slot is usually empty.)
   ; Palette and rotation bits don't matter.
   ; (We can't see them right there anyway.)
   ; X position to the far right.

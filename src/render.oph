@@ -23,7 +23,7 @@ WriteBlankTile:
   STA VRAMIO
   RTS  
 
-.macro blankRows  ; `blankRows numRows
+.macro BlankRows  ; `BlankRows numRows
   STX TempX
   LDX #$00
 _writeRow:
@@ -34,7 +34,7 @@ _writeRow:
   LDX TempX
 .macend
 
-.macro blankTiles ; `blankTiles numTiles
+.macro BlankTiles ; `BlankTiles numTiles
   STX TempX 
   LDX #$00
 _writeBlank: 
@@ -122,15 +122,15 @@ RenderTitleScreen:
 
 RenderPlayField:
   `setPPU NameTable0
-  `blankRows 2
+  `BlankRows 2
   LDX #$00
 * LDA scoreRow, X
   STA VRAMIO
   INX
   CPX #$20
   BNE -
-  `blankRows 1
-  `blankTiles 1
+  `BlankRows 1
+  `BlankTiles 1
   LDA #$01  ; Top-left corner
   STA VRAMIO
   LDA #$02  ; Upper border
@@ -141,14 +141,14 @@ RenderPlayField:
   BNE -
   LDA #$03  ; Top-right corner
   STA VRAMIO
-  `blankTiles 2
+  `BlankTiles 2
   LDX #$00
 * LDA #$07  ; Left border
   STA VRAMIO
-  `blankTiles 28
+  `BlankTiles 28
   LDA #$08  ; Right border
   STA VRAMIO
-  `blankTiles 2
+  `BlankTiles 2
   INX
   CPX #$16
   BNE -
@@ -176,12 +176,12 @@ RenderHonkeyKongScreen:
   ; This subroutine could use A LOT of optimization.
   ; I'm a lazy bastard though, so here it is for now.
   `setPPU NameTable0
-  `blankRows 4
+  `BlankRows 4
   LDY #$00
   LDA #$14
   STA TempCounter
   LDX #$00
-* `blankTiles 6
+* `BlankTiles 6
 * LDA HonkeyKongLogoData, X
   STA VRAMIO
   INX 
@@ -191,7 +191,7 @@ RenderHonkeyKongScreen:
   CLC
   ADC #$14
   STA TempCounter
-  `blankTiles 6
+  `BlankTiles 6
   INY
   CPY #$05
   BNE --
@@ -200,13 +200,13 @@ RenderHonkeyKongScreen:
   LDY #$AA      ; Where the counter should end up
   LDA #$72      ; Initial compare value for first row.
   STA TempCounter
-* `blankTiles 9
+* `BlankTiles 9
 * LDA HonkeyKongLogoData, X
   STA VRAMIO
   INX
   CPX TempCounter
   BNE -
-  `blankTiles 9
+  `BlankTiles 9
   CPY TempCounter
   BEQ +
   LDA TempCounter
@@ -215,18 +215,18 @@ RenderHonkeyKongScreen:
   STA TempCounter
   BNE --
   ; Rendered "KONG", next render my super-awesome avatar sprite
-* `blankRows 2
+* `BlankRows 2
   LDX #$00
   LDA #$04
   LDY #$18
   STA TempCounter
-* `blankTiles $0E
+* `BlankTiles $0E
 * LDA HonkeySprite, X
   STA $2007
   INX
   CPX TempCounter
   BNE -
-  `blankTiles 14
+  `BlankTiles 14
   CPY TempCounter
   BEQ +
   LDA TempCounter
@@ -235,18 +235,18 @@ RenderHonkeyKongScreen:
   STA TempCounter
   BNE --
   ; I look fantastic. Let's do more shameless self-promotion.
-* `blankRows 2
+* `BlankRows 2
   LDX #$00
   LDA #$14
   LDY #$28
   STA TempCounter
-* `blankTiles 6
+* `BlankTiles 6
 * LDA HonkeyKongURLData, X
   STA $2007
   INX
   CPX TempCounter
   BNE -
-  `blankTiles 6
+  `BlankTiles 6
   CPY TempCounter
   BEQ +
   LDA TempCounter
@@ -254,7 +254,7 @@ RenderHonkeyKongScreen:
   ADC #$14
   STA TempCounter
   BNE --
-* `blankRows 2
+* `BlankRows 2
   RTS
 
 WriteHKAttributes:
