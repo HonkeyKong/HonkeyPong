@@ -36,9 +36,7 @@
   .space  ScoreP1           1   ; Player 1 Score
   .space  ScoreP2           1   ; Player 2 Score
   .space  ButtonsP1         1   ; Player 1 Button State
-  .space  TempButtons1      1   ; P1 Button Compare Value
   .space  ButtonsP2         1   ; Player 2 Button State
-  .space  TempButtons2      1   ; P2 Button Compare Value
   .space  BallX             1   ; Ball X Position Copy
   .space  BallY             1   ; Ball Y Position Copy
   .space  BallBottom        1   ; Bottom boundary of ball.
@@ -55,10 +53,11 @@
   .space  Paddle2YBot       1   ; Bottom boundary of Player 2 paddle.
   .space  GameState         1   ; Current game state.
   .space  MapAddr           2   ; Address of tile map for bulk transfer.
-  .space  TempX             1   ; Temporary storage for X.
+  .space  TempX             1   ; Temporary storage for X, used in rendering.
   .space  TempCounter       1   ; Temporary tile counter for nametable rendering.
   .space  FrameCounter      1   ; Frame counter used for timing pauses in logic.
   .space  PauseTimer        1   ; Counter used for timing seconds paused.
+  .space  PauseDuration     1   ; How long should the game logic be paused?
   .space  TitleShowing      1   ; Flag raised when title screen is rendered.
   .space  TitleCardShowing  1   ; Flag raised when title card is rendered.
   .space  FieldRendered     1   ; Flag raised when playfield is rendered.
@@ -142,7 +141,8 @@
   .include "input.oph"                  ; Controller handler
   .include "engine.oph"                 ; Main gameplay stuff
   .include "famitone2.oph"              ; Audio library
-  .include "../res/snd/HonkeyPong.oph"  ; Test song
+  .include "../res/snd/HonkeyPong.oph"  ; Game Music
+  .include "../res/snd/Sounds.oph"      ; Game Sounds
 
 RESET:
   ; Make sure everything gets set up properly.
@@ -151,10 +151,7 @@ RESET:
   JSR ClearRAM      ; Clear out RAM
   `clearStack       ; Clean up the stack.
   JSR ClearSprites  ; Move sprites off-screen.
-  JSR WaitVBlank    ; VBlank #2
-  JSR DisableGFX    ; Disable graphics
 
-  ; PPU should be warmed up now (After 2 VBlanks), set up the game.
   ; Clear out any flags that could have been raised before reset.
   LDA #$00
   STA TitleShowing
@@ -163,20 +160,36 @@ RESET:
   STA MusicPlaying
   STA GamePaused
   STA PauseTimer
+  STA PauseDuration
   STA GameOverShowing
   STA ScoreP1Updated
   STA ScoreP2Updated
   STA FrameCounter
 
+  JSR WaitVBlank    ; VBlank #2
+  
+  ; It generally takes 2 VBlank cycles to ensure the PPU is
+  ; warmed up and ready to start drawing stuff on the screen.
+  ; Now that the necessary time is passed, we can configure
+  ; the PPU and get stuff set up to render the title card.
+  JSR DisableGFX    ; Disable graphics
+
   ; OR some bitmasks together to set the PPU how we want it.
-  `ConfigurePPU NMIonVBlank|BGAddr1|PPUInc1|NameTable20
+  ; (Note that NMI is disabled here, so we don't corrupt VRAM 
+  ; by doing bulk data transfers + everything else and run out
+  ; of CPU time before the NES starts accessing VRAM again.)
+  `ConfigurePPU BGAddr1|PPUInc1|NameTable20
   ; Set Background Pattern Table to 1 (Second half of CHR bank)
   ; Increment PPU I/O by 1 (Horizontal), Nametable at $2000
 
+  ; Clear the nametables.
+  JSR ClearNameTables
+
   LDA #STATETITLECARD     ; We load the initial title card state here,
   STA GameState           ; before the main loop starts.
-                          ; When the NMI triggers, it'll automatically
-                          ; execute the title card subroutine.
+  JSR EngineTitleCard     ; Start title card rendering.
+  ; This routine will start the Non-Maskable Interrupt when it's
+  ; safe to do so. After it completes, it'll jump into the main loop.
 
 MainLoop:
   JMP MainLoop     ; Jump back, infinite loop. All game logic performed on NMI.
@@ -190,41 +203,23 @@ NMI:
   LDA #$02
   STA SpriteDMA   ; set the high byte (02) of the RAM address, start the transfer
 
-  ; Check to see if either player has scored since the last frame.
-  LDA ScoreP1Updated    ; Check if player 1 scored.
-  CMP #$01
-  BEQ +                 ; If so, jump ahead to update the point display.
-  LDA ScoreP2Updated    ; If not, see if player 2 scored.
-  CMP #$01
-  BNE ReadPads   ; If player 2 didn't score either, branch
-                        ; ahead and check the pause timer.
-
-* JSR DisableGFX        ; Turn off graphics and update the background.
-  JSR DrawScore         ; Draw the new scores for both players.
-  ; Reload the PPU configuration.
-  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
-  JSR EnableGFX         ; Turn graphics back on.
-  JSR ToggleNMI         ; Toggle the NMI off for a moment
-  `waitFrames 30        ; Pause for 30 frames so the players 
-                        ; can prepare for the next round.
-  JSR ToggleNMI         ; Toggle NMI back on, game is playing again.
-
   ; PPU updates are done, run the game logic.
-  ; IMPORTANT NOTE: This beginning period is the ONLY time you should
+  ; IMPORTANT NOTE: The above period is the ONLY time you should
   ; attempt to write to the PPU memory. Writing any other time will
   ; corrupt the display, due to conflicts from the NES trying to read
   ; the video memory while you're trying to write to it. If your game
   ; graphics get trashed, it usually means you're writing to the PPU 
   ; RAM outside of the initial VBlank period, or you've run out of 
   ; processing time in the above segment. This info can save your life.
+  
+  JSR CheckPauseTimer
 
   ; Read the controller states.
-ReadPads:
   JSR ReadController1
   JSR ReadController2
 
   ; Check the game state, and jump to the proper subroutine.
-  LDA GameState
+* LDA GameState
   CMP #STATETITLECARD
   BNE +
   JSR EngineTitleCard
@@ -254,7 +249,7 @@ ReadPads:
   ; in this routine ($0200) isn't actual video memory, but a page in
   ; RAM used as a *copy* of the Object Attribute Memory. It will be
   ; updated via DMA during the next VBlank, before the frame is drawn.
-  
+
   JSR UpdateSprites
 
   RTI   ; ReTurn from Interrupt

@@ -24,13 +24,6 @@ EngineTitleCard:
   ; Load the title card palette.
   `LoadPalette honkeyPal
 
-  ; (Note that NMI and rendering are disabled here, so we don't
-  ; corrupt VRAM doing bulk data transfers + NMI before VBlank)
-  `ConfigurePPU BGAddr1|PPUInc1|NameTable20
-
-  ; Clear out nametables.
-  JSR ClearNameTables
-
   ; Load the background.
   JSR RenderHonkeyKongScreen  ; Render "Honkey Kong" title card
   JSR WriteHKAttributes       ; Write Attribute Table
@@ -52,37 +45,28 @@ EngineTitleCard:
   LDA #$01                      ; Load NTSC_MODE constant into accumulator
   STA MusicPlaying              ; Set the Music Playing flag.
   STA GamePaused                ; Pause main game logic.
-  JSR FamiToneInit              ; Initialize the sound engine.
+  JSR FamiToneInit              ; Initialize the music engine.
+  LDX #<sounds                  ; Load low byte of sound address into X
+  LDY #>sounds                  ; Load high byte of sound address into Y
+  JSR FamiToneSfxInit           ; Initialize the sound engine.
+  LDA #$04                      ; Set pause duration for 4 seconds.
+  STA PauseDuration             ; (Length of the opening jingle.)
   LDA #$00                      ; Clear the Accumulator.
   STA PauseTimer                ; Set the pause timer to zero.
   JSR FamiToneMusicPlay         ; Hit the music! (Play song #0)
 
   ; If the title card is rendered and sound is initialized,
   ; This is where our per-frame logic starts.
-* LDA PauseTimer                ; Read the pause timer (updated once per second).
-  CMP #$04                      ; Have five seconds passed?
-  BNE CheckPauseTimer           ; If not, branch ahead.
-  LDA #$00                      ; If so, clear out the accumulator.
-  STA PauseTimer                ; Clear the pause timer.
-  STA GamePaused                ; Unpause the game logic.
+* LDA GamePaused
+  CMP #$00
+  BNE +
+  LDA #$00
   STA MusicPlaying              ; Clear the Music Playing flag.
   STA TitleCardShowing          ; Clear the Title Card flag.
   JSR FamiToneMusicStop         ; Stop the music.
   
   LDA #STATETITLE               ; Load the Title Screen state value.
   STA GameState                 ; Transfer to Game State.
-
-CheckPauseTimer:
-  LDA GamePaused        ; Check if pause flag is set.
-  CMP #$01
-  BNE ++                ; If it isn't, skip ahead and return.
-  LDX FrameCounter      ; Read out the frame counter.
-  INX                   ; Increment frame counter on X register.
-  CPX #$3C              ; Is the frame counter at 60? (1 second)
-  BNE +                 ; If not, skip the next two instructions.
-  INC PauseTimer        ; Increment the pause timer by one second.
-  LDX #$00              ; Reset the frame counter on X.
-* STX FrameCounter      ; Store new X value into frame counter.
 
 * RTS
 
@@ -111,9 +95,9 @@ EngineTitle:
   LDA #$01
   STA BallRight   ; Set the ball moving right.
   LDA #$00
-  STA BallLeft
-  STA BallFrame
-  STA GamePaused
+  STA BallLeft    ; Clear the left-moving flag.
+  STA BallFrame   ; Set frame lookup to zero.
+  STA GamePaused  ; Ensure game is unpaused.
 
   ; Clear out the scores.
   STA ScoreP1
@@ -133,19 +117,48 @@ EngineTitle:
 * RTS
 
 EnginePlaying:
+
+  ; Check if game logic is paused.
+  LDA GamePaused
+  CMP #$01
+  BNE +                 ; If the game isn't paused, check the score.
+  JMP PlayEngineDone    ; If it is paused, skip all the logic.
+
+* LDA ScoreP1Updated    ; Check if player 1 scored.
+  CMP #$01
+  BEQ +                 ; If so, jump ahead to update the point display.
+  LDA ScoreP2Updated    ; If not, see if player 2 scored.
+  CMP #$01
+  BNE ++                ; If player 2 didn't score either, branch
+                        ; ahead and check the game logic.
+
+* LDX #FT_SFX_CH0       ; Set effect channel 0
+  LDA #$02              ; Set sound effect #2 (score)
+  JSR FamiToneSfxPlay   ; Play sound effect.
+
+  LDA #$01
+  STA PauseDuration     ; Pause the game for 1 second.
+  STA GamePaused        ; Set the paused flag.
+
+  JSR DisableGFX        ; Turn off graphics and update the background.
+  JSR DrawScore         ; Draw the new scores for both players.
+  `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
+  JSR EnableGFX         ; Turn graphics back on.
+
+  ; Check if the playfield has already been rendered.
+* LDA FieldRendered
+  CMP #$01
+  BEQ +                	; If yes, skip rendering it again.
+
   ; Clear the title state.
   LDA #$00
   STA TitleShowing
   STA TitleCardShowing
   STA GameOverShowing
-  ; Check if the playfield has already been rendered.
-  LDA FieldRendered
-  CMP #$01
-  BEQ + 	; If yes, skip rendering it again.
   
   ; Set up and render the playing field.
   JSR DisableGFX
-  `loadPalette gamePal
+  `LoadPalette gamePal
   `ConfigurePPU NMIonVBlank|BGAddr0|Sprite8x8|SprAddr0|PPUInc1|NameTable20
   JSR RenderPlayField
   LDA #$01
@@ -154,40 +167,40 @@ EnginePlaying:
   JSR EnableGFX
 
   ; Check the direction of the ball and move it.
-* LDA BallRight		; Is the ball moving right?
-  BEQ +      			; If not, skip ahead.
+* LDA BallRight		    ; Is the ball moving right?
+  BEQ +      			    ; If not, skip ahead.
 
   LDA BallX
-  CLC             ; CLear the Carry bit.
-  ADC BallSpeedX 	; ADd with Carry
-  STA BallX       ; BallX = BallX + BallSpeedX
+  CLC                 ; CLear the Carry bit.
+  ADC BallSpeedX 	    ; ADd with Carry
+  STA BallX           ; BallX = BallX + BallSpeedX
 
   ; Check for a collision against the right wall.
   LDA BallX
   CMP #RIGHTWALL
-  BCC +           ; Branch if Carry Clear (if BallX < RIGHTWALL)
-                  ; Skip ahead and keep moving right.
+  BCC +               ; Branch if Carry Clear (if BallX < RIGHTWALL)
+                      ; Skip ahead and keep moving right.
 
   INC ScoreP1         ; Give player 1 a point.
   LDA #$01
-  STA ScoreP1Updated    ; Inform the game engine that the score has changed.
+  STA ScoreP1Updated  ; Inform the game engine that the score has changed.
   STA BallLeft        ; Set the ball moving to the left. (Serve player 1)
   LDA #$00      
   STA BallRight       ; Clear the right-moving flag.
   JSR ResetPlayfield  ; Reset the playing field.
 
   ; This is the same as the right bit, only reversed.
-* LDA BallLeft 		; Is the ball moving left?
-  BEQ +   				; If not, skip ahead.
+* LDA BallLeft 		    ; Is the ball moving left?
+  BEQ +   				    ; If not, skip ahead.
 
   LDA BallX
-  SEC             ; SEt the Carry bit.
-  SBC BallSpeedX  ; SuBtract with Carry
-  STA BallX       ; BallX = BallX - BallSpeedX
+  SEC                 ; SEt the Carry bit.
+  SBC BallSpeedX      ; SuBtract with Carry
+  STA BallX           ; BallX = BallX - BallSpeedX
 
   LDA BallX
   CMP #LEFTWALL
-  BCS +           ; Branch if Carry Set (if BallX > LEFTWALL)
+  BCS +               ; Branch if Carry Set (if BallX > LEFTWALL)
 
   INC ScoreP2         ; Give player 2 a point.
   LDA #$01        
@@ -198,65 +211,75 @@ EnginePlaying:
   JSR ResetPlayfield  ; Reset the playing field.
 
   ; Move the ball up.
-* LDA BallUp      ; Is the ball moving up?
-  BEQ +           ; If not, skip ahead.
+* LDA BallUp          ; Is the ball moving up?
+  BEQ +               ; If not, skip ahead.
 
   LDA BallY
   SEC
   SBC BallSpeedY
-  STA BallY       ; BallY = BallY - BallSpeedY
-  CLC             ; Clear the carry bit again.
-  ADC #$08        ; Add 8 to ball Y position.
-  STA BallBottom  ; Store as bottom boundary for collisions.
+  STA BallY           ; BallY = BallY - BallSpeedY
+  CLC                 ; Clear the carry bit again.
+  ADC #$08            ; Add 8 to ball Y position.
+  STA BallBottom      ; Store as bottom boundary for collisions.
 
   LDA BallY
   CMP #TOPWALL
-  BCS +           ; If (BallY < TOPWALL), skip ahead.
+  BCS +               ; If (BallY < TOPWALL), skip ahead.
+  
+  LDX #FT_SFX_CH0     ; Set effect channel 0
+  LDA #$01            ; Set sound effect #1 (Ping!)
+  JSR FamiToneSfxPlay ; Play sound effect.
+
   LDA #$01
-  STA BallDown    ; Set the down-moving flag.
+  STA BallDown        ; Set the down-moving flag.
   LDA #$00
-  STA BallUp      ; Clear the up-moving flag, bounce down.
+  STA BallUp          ; Clear the up-moving flag, bounce down.
 
   ; Move the ball down.
-* LDA BallDown    ; Is the ball moving down?
-  BEQ +           ; If not, skip ahead.
+* LDA BallDown        ; Is the ball moving down?
+  BEQ +               ; If not, skip ahead.
 
   LDA BallY
   CLC
   ADC BallSpeedY  
-  STA BallY       ; BallY = BallY + BallSpeedY
-  CLC             ; CLear Carry
-  ADC #$08        ; Add 8 to BallY
-  STA BallBottom  ; Store bottom ball boundary.
+  STA BallY           ; BallY = BallY + BallSpeedY
+  CLC                 ; CLear Carry
+  ADC #$08            ; Add 8 to BallY
+  STA BallBottom      ; Store bottom ball boundary.
 
   LDA BallY
   CMP #BOTTOMWALL
-  BCC +           ; If BallY > BOTTOMWALL, skip ahead.
+  BCC +               ; If BallY > BOTTOMWALL, skip ahead.
+
+  LDX #FT_SFX_CH0     ; Set effect channel 0
+  LDA #$01            ; Set sound effect #1 (Ping!)
+  JSR FamiToneSfxPlay ; Play sound effect.
+
   LDA #$00
-  STA BallDown    ; Clear down-moving flag.
+  STA BallDown        ; Clear down-moving flag.
   LDA #$01
-  STA BallUp      ; Set up-moving flag, bounce ball up.
+  STA BallUp          ; Set up-moving flag, bounce ball up.
 
   ; Time to check for player input.
   ; Player 1 D-Pad Up
 * LDA ButtonsP1
   AND #DPAD_UP
-  BEQ +           ; If P1 Up bit = 1, it's not pressed. Skip ahead.
+  BEQ +               ; If P1 Up bit = 1, it's not pressed. Skip ahead.
   
   ; Check if the paddle is hitting the top wall.
   LDA Paddle1YTop
   CMP #PADDLETOP
-  BCC +           ; If it's touching the top, skip ahead.
+  BCC +               ; If it's touching the top, skip ahead.
   
   ; Move the paddle up.
-  SEC             ; We're subtracting, so set the carry bit.
+  SEC                 ; We're subtracting, so set the carry bit.
   LDA Paddle1YTop
-  SBC #$02        ; Subtract 2 from the paddle Y position.
-  STA Paddle1YTop ; Store the new value in RAM.
-  CLC             ; Clear the carry bit for addition.
+  SBC #$02            ; Subtract 2 from the paddle Y position.
+  STA Paddle1YTop     ; Store the new value in RAM.
+  CLC                 ; Clear the carry bit for addition.
   LDA Paddle1YTop 
-  ADC #PADDLELENGTH ; Add the length of the paddle.
-  STA Paddle1YBot   ; Store paddle bottom position in RAM.
+  ADC #PADDLELENGTH   ; Add the length of the paddle.
+  STA Paddle1YBot     ; Store paddle bottom position in RAM.
 
   ; Player 2 D-Pad Up
   ; Identical to the Player 1 function, only with Player 2.
@@ -326,6 +349,10 @@ EnginePlaying:
   CMP Paddle1YBot
   BCS CheckPaddle2           ; No collision, skip.
   ; If nothing was skipped, we have a collision! 
+
+  LDX #FT_SFX_CH0      ; Set effect channel 0
+  LDA #$00            ; Set sound effect #0 (Pong!)
+  JSR FamiToneSfxPlay ; Play sound effect.
   
   ; Put some english on the ball if the paddle is moving.
   LDA ButtonsP1     ; Read the button state.
@@ -383,16 +410,20 @@ EnginePlaying:
 CheckPaddle2:
   LDA BallX
   CMP #PADDLE2X
-  BCC CollisionsDone
+  BCC PlayEngineDone
   ; Check Paddle 2 top boundary against ball bottom.
   LDA BallBottom
   CMP Paddle2YTop
-  BCC CollisionsDone
+  BCC PlayEngineDone
   ; Check Paddle 2 bottom boundary against ball top.
   LDA BallY
   CMP Paddle2YBot
-  BCS CollisionsDone
+  BCS PlayEngineDone
   ; Collision! 
+
+  LDX #FT_SFX_CH0      ; Set effect channel 0
+  LDA #$00            ; Set sound effect #0 (Pong!)
+  JSR FamiToneSfxPlay ; Play sound effect.
 
   ; Put some english on the ball if the paddle is moving.
   LDA ButtonsP2     ; Read the button state.
@@ -445,7 +476,7 @@ CheckPaddle2:
   LDA #$01
   STA BallLeft
 
-CollisionsDone:
+PlayEngineDone:
   RTS   ; ReTurn from Subroutine
 
   ; Locations in PPU memory where the
@@ -489,6 +520,27 @@ GameOverDone:
   BEQ +
   LDA #STATETITLE
   STA GameState
+* RTS
+
+CheckPauseTimer:
+  LDA GamePaused        ; Check if pause flag is set.
+  CMP #$01
+  BNE ++                ; If it isn't, skip ahead and return.
+  LDX FrameCounter      ; Read out the frame counter.
+  INX                   ; Increment frame counter on X register.
+  CPX #$3C              ; Is the frame counter at 60? (1 second)
+  BNE +                 ; If not, skip the next two instructions.
+  INC PauseTimer        ; Increment the pause timer by one second.
+  LDX #$00              ; Reset the frame counter on X.
+* STX FrameCounter      ; Store new X value into frame counter.
+
+  LDA PauseTimer                ; Read the pause timer (updated once per second).
+  CMP PauseDuration             ; Has the duration passed?
+  BNE +                         ; If not, branch ahead.
+  LDA #$00                      ; If so, clear out the accumulator.
+  STA PauseTimer                ; Clear the pause timer.
+  STA PauseDuration             ; Clear pause duration.
+  STA GamePaused                ; Unpause the game logic.
 * RTS
 
 DrawScore:
@@ -583,7 +635,7 @@ SetP1Done:
   RTS
 
 SetScoreP2:
-`setPPU ScoreP2Loc
+  `setPPU ScoreP2Loc
   LDX ScoreP2
   CPX #$0A
   BEQ SetP2Win

@@ -22,6 +22,10 @@ MUSIC_SRC=res/snd/HonkeyPong.txt
 
 MUSIC_ASM=res/snd/HonkeyPong.oph
 
+SOUND_SRC=res/snd/Sounds.nsf
+
+SOUND_ASM=res/snd/Sounds.oph
+
 TXT_SRC=src/text2data.cpp
 
 NSF_SRC=src/nsf2data.cpp
@@ -63,23 +67,19 @@ soundtools: $(SND_SRC)
 	@echo Building nsf2data...
 	@$(CXX) -o $(NSF_TARGET) $(NSF_SRC)
 
-#$(MUSIC_ASM): $(MUSIC_SRC)
-
-#$(SOUND_ASM): $(NSF_SRC)
-
 .PHONY: sound
 sound: $(MUSIC_SRC)
 	@echo Generating music data...
 	@$(TXT_TARGET) $(MUSIC_SRC) -ophis
-#@echo Generating sound data...
-#@$(NSF_TARGET) $(NSF_SRC) -ophis
+	@echo Generating sound data...
+	@$(NSF_TARGET) $(SOUND_SRC) -ophis
 
 .PHONY: clean-sound
 clean-sound:
 	@echo Cleaning music...
 	@rm -f $(MUSIC_ASM)
-#@echo Cleaning sound...
-#@rm -f $(NSF_ASM)
+	@echo Cleaning sound...
+	@rm -f $(SOUND_ASM)
 
 .PHONY: clean-soundtools
 clean-soundtools:

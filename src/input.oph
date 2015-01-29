@@ -48,8 +48,4 @@ ReadController2:
   ROL ButtonsP2	    ; bit0 <- Carry
   DEX
   BNE -
-  ; Disable the APU Interrupt so we don't 
-  ; corrupt anything while reading Pad 2.
-  LDA #$40
-  STA Pad2
   RTS

@@ -100,22 +100,6 @@
   STA VRAMAddr          ; write the low byte of nametable address
 .macend
 
-; This macro is just a quick & dirty way to do nothing
-; for a set amount of frames. Since the game runs @ 60fps
-; on a US (NTSC) NES or Japanese Famicom, we can time out
-; seconds in multiples of 60. Obviously, this should be 
-; multiples of 50 for PAL systems, since they run @ 50fps.
-.macro WaitFrames   ; `WaitFrames numFrames (Max 255)
-  STX TempX
-  LDX #$00
-  _wait1Frame:
-  JSR WaitVBlank
-  INX
-  CPX #_1 
-  BNE _wait1Frame
-  LDX TempX
-.macend
-
 ; Pretty self-explanatory. Just keep bit-checking the PPU
 ; Status register until the Vblank fires, then return.
 WaitVBlank:
@@ -123,24 +107,9 @@ WaitVBlank:
 	BPL -
 	RTS
 
-; Toggle the Non-Maskable Interrupt on VBlank. This is useful
-; for times when the game logic needs to be paused, such as
-; when a point is scored, to give the players a moment to 
-; prepare for the next round, or when performing large bulk
-; data transfers to PPU memory for scene transitions. Remember,
-; Writing to PPU RAM outside of the VBlank period will corrupt
-; the PPU memory, trash your graphics, and maybe even crash
-; your game or kill your neighbors. It's a very bad thing.
-ToggleNMI:
-	LDA PPUControl1 	; Read the PPU configuration
-	EOR NMIonVBlank	; XOR with the NMI bit.
-	STA PPUControl1 	; Write PPU config back.
-	RTS
-
 ; Zero out the PPU Control registers, clearing all configuration
 ; flags, effectively disabling all graphics rendering.
 DisableGFX:
-	;JSR WaitVBlank
 	LDA	#$00
 	STA PPUControl1
 	STA PPUControl2
@@ -170,15 +139,15 @@ ClearNameTables:			; Clear the name tables.
 	RTS
 
 ; Clears out sprite RAM and moves off-screen.
+; Write #$FE to all 256 OAM bytes.
+; #$FF may possibly wrap the sprites around.
+; Y goes down past the drawable area.  
+; Tile index will be at the end of the bank.
+; (In small games, this slot is usually empty.)
+; Palette and rotation bits don't matter.
+; (We can't see them right there anyway.)
+; X position to the far right.
 ClearSprites:
-  ; Write #$FE to all 256 OAM bytes.
-  ; #$FF may possibly wrap the sprites around.
-  ; Y goes down past the drawable area.  
-  ; Tile index will be at the end of the bank.
-  ; (In small games, this slot is usually empty.)
-  ; Palette and rotation bits don't matter.
-  ; (We can't see them right there anyway.)
-  ; X position to the far right.
   LDA #$FE 
 * STA $200,X
   INX
@@ -186,13 +155,13 @@ ClearSprites:
   BNE	-
   RTS
 
-.macro LoadPalette 	; `LoadPalette address
+.macro LoadPalette 		; `LoadPalette address
   `setPPU PaletteRAM
   LDX #$00
 _paletteLoop:
-  LDA _1, x      ;load palette byte
+  LDA _1, x      		;load palette byte
   STA VRAMIO            ;write to PPU
   INX                   ;set index to next byte
   CPX #$20            
-  BNE _paletteLoop                 ;if x = $20, 32 bytes copied, all done
+  BNE _paletteLoop      ;if x = $20, 32 bytes copied, all done
 .macend

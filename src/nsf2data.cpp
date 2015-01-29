@@ -342,7 +342,18 @@ int main(int argc,char *argv[])
 		}
 	}
 
-	if(outtype!=OUT_CA65) strcat(name,".asm"); else strcat(name,".s");
+	//if(outtype!=OUT_CA65) strcat(name,".asm"); else strcat(name,".s");
+	switch(outtype) {
+		case OUT_CA65:
+			strcat(name, ".s");
+			break;
+		case OUT_OPHIS:
+			strcat(name,".oph");
+			break;
+		default:
+			strcat(name,".asm");
+			break;
+	}
 
 	out_file=fopen(name,"wt");
 
