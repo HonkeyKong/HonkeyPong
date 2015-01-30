@@ -440,9 +440,9 @@ void parse_error(int off,const char *str)
 }
 
 
-void parse_error_ptn(int pos,int row,int chn,const char *str)
+void parse_error_ptn(int song,int pos,int row,int chn,const char *str)
 {
-	printf("Parsing error (pos:%2.2x, row:%2.2x, chn %i): %s\n",pos,row,chn,str);
+	printf("Parsing error (song:%2.2i pos:%2.2x row:%2.2x chn %i): %s\n",song+1,pos,row,chn,str);
 
 	exit(1);
 }
@@ -752,7 +752,7 @@ void parse_song_old(void)
 				{
 					note+=12*text_read_dec(off+2);//add octave
 
-					if(note<12+2||note>=12*6+2+3) parse_error_ptn(pos,row,chn,"Note is out of supported range (C-1..D-6)");
+					if(note<12+2||note>=12*6+2+3) parse_error_ptn(0,pos,row,chn,"Note is out of supported range (C-1..D-6)");
 
 					note-=12;//correct range
 				}
@@ -761,14 +761,14 @@ void parse_song_old(void)
 
 				if(chn==4&&note>1)//check note range in the DPCM channel
 				{
-					if(note<2*12+2||note>3*12-1+2) parse_error_ptn(pos,row,chn,"DPCM note is out of supported range (C-3..B-3)");
+					if(note<2*12+2||note>3*12-1+2) parse_error_ptn(0,pos,row,chn,"DPCM note is out of supported range (C-3..B-3)");
 
 					note=note-2*12;
 				}
 
 				if(text_src[off+4]=='.') ins=-1; else ins=text_read_hex(off+4);
 
-				if(ins>63) parse_error_ptn(pos,row,chn,"Instrument number is out of range (0..63)");
+				if(ins>63) parse_error_ptn(0,pos,row,chn,"Instrument number is out of range (0..63)");
 
 				song_original.pattern[pos].row[row].channel[chn].note      =note;
 				song_original.pattern[pos].row[row].channel[chn].instrument=ins;
@@ -785,7 +785,7 @@ void parse_song_old(void)
 					song_original.pattern[pos].length=row+1;
 					song_break=true;
 
-					if(song_original.order_loop>pos) parse_error_ptn(pos,row,chn,"Bxx loop position can't be a forward reference");
+					if(song_original.order_loop>pos) parse_error_ptn(0,pos,row,chn,"Bxx loop position can't be a forward reference");
 
 					break;
 
@@ -803,7 +803,7 @@ void parse_song_old(void)
 					break;
 
 				default:
-					parse_error_ptn(pos,row,chn,"Unsupported effect");
+					parse_error_ptn(0,pos,row,chn,"Unsupported effect");
 				}
 
 				off+=13;
@@ -1276,7 +1276,7 @@ void parse_song(int subsong,bool header_only)
 
 						song_original.pattern[pos].length=row+1;
 
-						if(song_original.order_loop>order[pos][chn]) parse_error_ptn(order[pos][chn],row,chn,"Bxx loop position can't be a forward reference");
+						if(song_original.order_loop>pos) parse_error_ptn(subsong,pos,row,chn,"Bxx loop position can't be a forward reference");
 					}
 					break;
 
@@ -1287,7 +1287,7 @@ void parse_song(int subsong,bool header_only)
 					{
 						song_original.pattern[pos].length=row+1;
 
-						if(nsrc->parameter) parse_error_ptn(order[pos][chn],row,chn,"Dxx value can only be zero");
+						if(nsrc->parameter) parse_error_ptn(subsong,pos,row,chn,"Dxx value can only be zero");
 					}
 					break;
 
@@ -1300,7 +1300,7 @@ void parse_song(int subsong,bool header_only)
 				default:
 					{
 						printf("%c",nsrc->effect);
-						parse_error_ptn(order[pos][chn],row,chn,"Unsupported effect");
+						parse_error_ptn(subsong,pos,row,chn,"Unsupported effect");
 					}
 				}
 			}
@@ -2145,7 +2145,7 @@ int main(int argc,char *argv[])
 	if(argc<2)
 	{
 		printf("text2data for FamiTone2 NES audio library\n");
-		printf("Original software by Shiru (shiru@mail.ru), 11'14\n");
+		printf("Original software by Shiru (shiru@mail.ru), 01'15\n");
 		printf("Ophis and Linux/OSX support by HonkeyKong (honkeykong@honkeykong.org), 01'15\n\n");
 		printf("Usage: text2data song.txt [-ca65 or -asm6 or -ophis][-ch1..5][-s]\n");
 
