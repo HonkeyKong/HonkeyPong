@@ -51,9 +51,10 @@
   .space  Paddle1YBot       1   ; Bottom boundary of Player 1 paddle.
   .space  Paddle2YTop       1   ; Y position of Player 2 paddle top.
   .space  Paddle2YBot       1   ; Bottom boundary of Player 2 paddle.
+  .space  BlankTiles        1   ; Counter for blank tiles.
+  .space  BlankRows         1   ; Counter for blank rows.
   .space  GameState         1   ; Current game state.
   .space  MapAddr           2   ; Address of tile map for bulk transfer.
-  .space  TempX             1   ; Temporary storage for X, used in rendering.
   .space  TempCounter       1   ; Temporary tile counter for nametable rendering.
   .space  FrameCounter      1   ; Frame counter used for timing pauses in logic.
   .space  PauseTimer        1   ; Counter used for timing seconds paused.

@@ -24,8 +24,8 @@ EngineTitleCard:
   ; Load the title card palette.
   `LoadPalette honkeyPal
 
-  ; Load the background.
-  JSR RenderHonkeyKongScreen  ; Render "Honkey Kong" title card
+  ; Load the background. 
+  JSR RenderTitleCard         ; Render "Honkey Kong" title card
   JSR WriteHKAttributes       ; Write Attribute Table
   
   ; Set the nametable same as before, but enable NMI.
